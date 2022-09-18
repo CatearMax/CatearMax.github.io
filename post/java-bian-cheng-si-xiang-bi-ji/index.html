@@ -1,0 +1,367 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Java编程思想笔记 | Gridea</title>
+<link rel="shortcut icon" href="https://CatearMax.github.io/favicon.ico?v=1663503477173">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://CatearMax.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Java编程思想笔记 | Gridea - Atom Feed" href="https://CatearMax.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="1.对象导论
+1.1抽象过程
+
+万物皆对象。
+程序是对象的集合，通过发送消息来告诉彼此所需要做的。：将消息比作某特定对象的方法的调用请求。
+每个对象都有自己的由其它对象构成的存储。：对象中包含另一个对象。
+每个对象都有其类型。
+某一特性类型..." />
+    <meta name="keywords" content="Java基础" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://CatearMax.github.io">
+  <img class="avatar" src="https://CatearMax.github.io/images/avatar.png?v=1663503477173" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Java编程思想笔记
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-08-08
+              </span>
+              <span>
+                6 min read
+              </span>
+              
+                <a href="https://CatearMax.github.io/tag/X6oImvtqS/" class="post-tag">
+                  # Java基础
+                </a>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="1对象导论">1.对象导论</h1>
+<h2 id="11抽象过程">1.1抽象过程</h2>
+<blockquote>
+<p><strong>万物皆对象</strong>。</p>
+<p><strong>程序是对象的集合，通过发送消息来告诉彼此所需要做的。</strong>：将消息比作某特定对象的方法的调用请求。</p>
+<p><strong>每个对象都有自己的由其它对象构成的存储</strong>。：对象中包含另一个对象。</p>
+<p><strong>每个对象都有其类型。</strong></p>
+<p><strong>某一特性类型的所有对象都能接收同样的消息。</strong> ：多态</p>
+</blockquote>
+<h2 id="12每个对象都有一个接口">1.2每个对象都有一个接口</h2>
+<blockquote>
+<p>抽取出具有相同特性（<strong>属性</strong>）和行为（<strong>方法</strong>）的对象集合。</p>
+<p>比如向某个对象发送消息（<strong>发送请求</strong>），该对象能够知道该消息的目的并能够执行相应的代码。</p>
+</blockquote>
+<h2 id="13每个对象都提供服务">1.3每个对象都提供服务</h2>
+<blockquote>
+<p>设计程序时，<strong>将对象视为服务提供者</strong>。程序向用户提供服务，然后程序调用对象的提供的服务以此实现目的。</p>
+<p>同时将对象视为服务提供者能够提高对象的高内聚，<strong>对象完成提供服务的使命，但是绝不多做任何事</strong>。</p>
+</blockquote>
+<h2 id="14被隐藏的具体实现">1.4被隐藏的具体实现</h2>
+<blockquote>
+<p>程序中有服务提供者与服务调用者，服务提供者只需要向服务调用者暴露后者所需要的部分即可，减少不必要的bug。例如我们需要将数据库中的完整PO对象转换成业务层中的DTO对象，并且仅提供业务层中需要的属性。</p>
+<p>同时还可使用访问控制关键字加以保护，public、protected、private以及default进行控制。</p>
+</blockquote>
+<h2 id="15复用具体实现">1.5复用具体实现</h2>
+<blockquote>
+<p>某一对象作为另一对象的属性 <strong>组合</strong>（has-a）</p>
+<p>两个对象动态进行组合，例如：方法参数。<strong>聚合</strong>组合的依赖性比聚合要高</p>
+</blockquote>
+<h2 id="16继承">1.6继承</h2>
+<blockquote>
+<p><strong>is-a</strong>继承中子类重写父类中的方法</p>
+<p><strong>is-like-a</strong>子类新增了父类中不具有的方法</p>
+</blockquote>
+<h2 id="17伴随多态的可互换对象">1.7伴随多态的可互换对象</h2>
+<blockquote>
+<p>多态即是：<strong>父引用指向子实例</strong>，实际对应逻辑是子实例中的逻辑</p>
+</blockquote>
+<h1 id="2一切都是对象">2.一切都是对象</h1>
+<h2 id="21用引用操纵对象">2.1用引用操纵对象</h2>
+<blockquote>
+<p>持有对象的引用(地址)，即可对对象进行操作。Java是<strong>值传递</strong>，引用对象传递的是其地址。</p>
+</blockquote>
+<h2 id="22必须由你来创建对象">2.2必须由你来创建对象</h2>
+<h3 id="221存储到什么地方">2.2.1存储到什么地方</h3>
+<h4 id="2211寄存器">2.2.1.1寄存器</h4>
+<blockquote>
+<p>位于处理器内部，寄存器内存有限，用户无感且无法控制。</p>
+</blockquote>
+<h4 id="2212堆栈">2.2.1.2堆栈</h4>
+<blockquote>
+<p>位于RAM中，通过<strong>堆栈指针</strong>进行控制，若指针向下移动，则是分配新的内存，指针向上移动，则是释放内存。大多的Java<strong>对象引用</strong>存放于堆栈中</p>
+</blockquote>
+<h4 id="2213-堆">2.2.1.3 堆</h4>
+<blockquote>
+<p>通用的内存池，位于RAM中，用于存放所有<strong>Java对象</strong>，</p>
+</blockquote>
+<h4 id="2214常量存储">2.2.1.4常量存储</h4>
+<blockquote>
+<p>存放在Rom中。</p>
+</blockquote>
+<h4 id="2215非ram存储">2.2.1.5非RAM存储</h4>
+<blockquote>
+<p>持久化对象，存放在磁盘上。</p>
+</blockquote>
+<h3 id="222基本类型">2.2.2基本类型</h3>
+<blockquote>
+<p>基本数据类型是放在栈中还是放在堆中，这取决于基本类型声明的位置。</p>
+<p>基本数据类型变量在局部方法中是存放在栈中（变量名及其值）；在实例对象中是存放在堆中（变量名及其值）。</p>
+</blockquote>
+<h2 id="访问权限控制符">访问权限控制符</h2>
+<table>
+<thead>
+<tr>
+<th>修饰符</th>
+<th>类内部</th>
+<th>同一个包</th>
+<th>不同包的子类</th>
+<th>同一个工程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>private</td>
+<td>yes</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>default（缺省）</td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>protected</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>public</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<h1 id="3容器">3.容器</h1>
+<h2 id="31迭代器">3.1迭代器</h2>
+<h3 id="311-iterator">3.1.1 Iterator</h3>
+<blockquote>
+<p>迭代器（一种设计模式）是一个对象，它的工作是遍历并选择序列（集合）中的对象。Java的Iterator只能单向移动。这个Iterator主要用来：</p>
+<ol>
+<li>使用方法**Iterator()**要求容器返回一个Iterator对象。Iterator将准备返回序列（集合）中的第一个元素。</li>
+<li>使用**next()**获得序列（集合）中的下一个元素。</li>
+<li>使用**hasNext()**检查序列（集合）中是否还有元素。</li>
+<li>使用**remove()**将迭代器最新返回的元素进行删除。</li>
+</ol>
+</blockquote>
+<h3 id="312-listiterator">3.1.2 ListIterator</h3>
+<blockquote>
+<p>ListIterator是Iterator的子类型，只能用于List之间的各种访问，ListIterator可以<strong>双向移动</strong>，同时可以产生相对迭代器在列表中只想当前位置的前一个和后一个的<strong>索引</strong>，并且可以使用<strong>set()<strong>方法替换它访问过的</strong>最后一个元素</strong>，同时还可以通过调用**listIterator(index)**创建一个一开始就指向索引为index处的ListIterator</p>
+</blockquote>
+<pre><code class="language-java">public static void main(String[] args) {
+        List&lt;String&gt; list = Arrays.asList(&quot;s1&quot;,&quot;s2&quot;,&quot;s3&quot;,&quot;s4&quot;,&quot;s5&quot;,&quot;s6&quot;,&quot;s7&quot;,&quot;s8&quot;,&quot;s9&quot;);
+        ListIterator&lt;String&gt; iterator = list.listIterator();
+        while (iterator.hasNext()) {
+            System.out.println(&quot;previousIndex:&quot;+iterator.previousIndex()+&quot;\tnextIndex:&quot;+iterator.nextIndex()+&quot;\tnextValue:&quot;+iterator.next());
+        }
+		
+    	//指向索引为3的迭代器
+        iterator = list.listIterator(3);
+        while (iterator.hasNext()) {
+            iterator.next();
+            //同时将对应值进行替换
+            iterator.set(&quot;zero&quot;);
+        }
+        System.out.println(list);
+    }
+
+//打印前一索引 下一索引 以及下一值
+previousIndex:-1	nextIndex:0	nextValue:s1
+previousIndex:0		nextIndex:1	nextValue:s2
+previousIndex:1		nextIndex:2	nextValue:s3
+previousIndex:2		nextIndex:3	nextValue:s4
+previousIndex:3		nextIndex:4	nextValue:s5
+previousIndex:4		nextIndex:5	nextValue:s6
+previousIndex:5		nextIndex:6	nextValue:s7
+previousIndex:6		nextIndex:7	nextValue:s8
+previousIndex:7		nextIndex:8	nextValue:s9
+    //将索引为3后的值替换为zero
+[s1, s2, s3, zero, zero, zero, zero, zero, zero]
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#1%E5%AF%B9%E8%B1%A1%E5%AF%BC%E8%AE%BA">1.对象导论</a>
+<ul>
+<li><a href="#11%E6%8A%BD%E8%B1%A1%E8%BF%87%E7%A8%8B">1.1抽象过程</a></li>
+<li><a href="#12%E6%AF%8F%E4%B8%AA%E5%AF%B9%E8%B1%A1%E9%83%BD%E6%9C%89%E4%B8%80%E4%B8%AA%E6%8E%A5%E5%8F%A3">1.2每个对象都有一个接口</a></li>
+<li><a href="#13%E6%AF%8F%E4%B8%AA%E5%AF%B9%E8%B1%A1%E9%83%BD%E6%8F%90%E4%BE%9B%E6%9C%8D%E5%8A%A1">1.3每个对象都提供服务</a></li>
+<li><a href="#14%E8%A2%AB%E9%9A%90%E8%97%8F%E7%9A%84%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0">1.4被隐藏的具体实现</a></li>
+<li><a href="#15%E5%A4%8D%E7%94%A8%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0">1.5复用具体实现</a></li>
+<li><a href="#16%E7%BB%A7%E6%89%BF">1.6继承</a></li>
+<li><a href="#17%E4%BC%B4%E9%9A%8F%E5%A4%9A%E6%80%81%E7%9A%84%E5%8F%AF%E4%BA%92%E6%8D%A2%E5%AF%B9%E8%B1%A1">1.7伴随多态的可互换对象</a></li>
+</ul>
+</li>
+<li><a href="#2%E4%B8%80%E5%88%87%E9%83%BD%E6%98%AF%E5%AF%B9%E8%B1%A1">2.一切都是对象</a>
+<ul>
+<li><a href="#21%E7%94%A8%E5%BC%95%E7%94%A8%E6%93%8D%E7%BA%B5%E5%AF%B9%E8%B1%A1">2.1用引用操纵对象</a></li>
+<li><a href="#22%E5%BF%85%E9%A1%BB%E7%94%B1%E4%BD%A0%E6%9D%A5%E5%88%9B%E5%BB%BA%E5%AF%B9%E8%B1%A1">2.2必须由你来创建对象</a>
+<ul>
+<li><a href="#221%E5%AD%98%E5%82%A8%E5%88%B0%E4%BB%80%E4%B9%88%E5%9C%B0%E6%96%B9">2.2.1存储到什么地方</a>
+<ul>
+<li><a href="#2211%E5%AF%84%E5%AD%98%E5%99%A8">2.2.1.1寄存器</a></li>
+<li><a href="#2212%E5%A0%86%E6%A0%88">2.2.1.2堆栈</a></li>
+<li><a href="#2213-%E5%A0%86">2.2.1.3 堆</a></li>
+<li><a href="#2214%E5%B8%B8%E9%87%8F%E5%AD%98%E5%82%A8">2.2.1.4常量存储</a></li>
+<li><a href="#2215%E9%9D%9Eram%E5%AD%98%E5%82%A8">2.2.1.5非RAM存储</a></li>
+</ul>
+</li>
+<li><a href="#222%E5%9F%BA%E6%9C%AC%E7%B1%BB%E5%9E%8B">2.2.2基本类型</a></li>
+</ul>
+</li>
+<li><a href="#%E8%AE%BF%E9%97%AE%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6%E7%AC%A6">访问权限控制符</a></li>
+</ul>
+</li>
+<li><a href="#3%E5%AE%B9%E5%99%A8">3.容器</a>
+<ul>
+<li><a href="#31%E8%BF%AD%E4%BB%A3%E5%99%A8">3.1迭代器</a>
+<ul>
+<li><a href="#311-iterator">3.1.1 Iterator</a></li>
+<li><a href="#312-listiterator">3.1.2 ListIterator</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://CatearMax.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

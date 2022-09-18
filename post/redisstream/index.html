@@ -1,0 +1,917 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RedisStream | Gridea</title>
+<link rel="shortcut icon" href="https://CatearMax.github.io/favicon.ico?v=1663503477173">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://CatearMax.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="RedisStream | Gridea - Atom Feed" href="https://CatearMax.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="1、 Redis中Stream的特点
+
+
+
+Redis Stream 的结构如上图所示，它有一个消息链表，将所有加入的消息都串起来，每个消息都有一个唯一的 ID 和对应的内容
+
+
+消息是持久化的，Redis 重启后，内容还在。
+
+
+每个 S..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://CatearMax.github.io">
+  <img class="avatar" src="https://CatearMax.github.io/images/avatar.png?v=1663503477173" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              RedisStream
+            </h2>
+            <div class="post-info">
+              <span>
+                2022-09-18
+              </span>
+              <span>
+                25 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="1-redis中stream的特点">1、 Redis中Stream的特点</h1>
+<blockquote>
+<ul>
+<li>
+<p>Redis Stream 的结构如上图所示，它有一个消息链表，将所有加入的消息都串起来，每个消息都有一个唯一的 ID 和对应的内容</p>
+</li>
+<li>
+<p>消息是持久化的，Redis 重启后，内容还在。</p>
+</li>
+<li>
+<p>每个 Stream 都有唯一的名称，它就是 Redis 的 key，首次使用 xadd 指令追加消息时自动创建。</p>
+</li>
+<li>
+<p>每个 Stream 都可以挂多个消费组，每个消费组会有个游标last_delivered_id 在 Stream数组之上往前移动，表示当前消费组已经消费到哪条消息了。</p>
+</li>
+<li>
+<p>每个消费组都有一个 Stream内唯一的名称，消费组不会自动创建，它需要单独的指令 xgroup create 进行创建，需要指定从 Stream 的某个消息 ID 开始消费，这个 ID 用来初始化 last_delivered_id 变量。</p>
+</li>
+<li>
+<p>每个消费组 (Consumer Group) 的状态都是独立的，相互不受影响，即同一份Stream 内部的消息会被每个消费组都消费到。</p>
+</li>
+<li>
+<p>同一个消费组 (Consumer Group) 可以挂接多个消费者 (Consumer)，这些消费者之间是竞争关系，任意一个消费者读取了消息都会使游标 last_delivered_id 往前移动。每个消费者有一个组内唯一名称。</p>
+</li>
+<li>
+<p>消费者 (Consumer) 内部会有个状态变量 pending_ids，它记录了当前已经被客户端读取的消息，但是还没有 ack。如果客户端没有 ack，这个变量里面的消息 ID 会越来越多，一旦某个消息被 ack，它就开始减少。这个 pending_ids 变量在 Redis 官方被称之为 PEL （ Pending Entries List），这是一个很核心的数据结构，它用来确保客户端至少消费了消息一次，而不会在网络传输的中途丢失了没处理。</p>
+</li>
+</ul>
+</blockquote>
+<h1 id="2-stream的结构">2、Stream的结构</h1>
+<figure data-type="image" tabindex="1"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/08713958918f49958b0a28e32f646271tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="redis stream 结构图" loading="lazy"></figure>
+<blockquote>
+<p>解释：</p>
+<p><code>消费者组：</code> Consumer Group,即使用 <code>XGROUP CREATE</code> 命令创建的，一个消费者组中可以存在多个消费者，这些消费者之间是<code>竞争</code>关系。</p>
+<ol>
+<li>同一条消息，只能被这个消费者组中的某个消费者获取。</li>
+<li>多个消费者之间是相互独立的，互不干扰。</li>
+</ol>
+<p><code>消费者：</code> Consumer 消费消息。</p>
+<p><code>last_delivered_id：</code> 这个id保证了在同一个消费者组中，一个消息只能被一个消费者获取。每当消费者组的某个消费者读取到了这个消息后，这个last_delivered_id的值会往后移动一位，保证消费者不会读取到重复的消息。</p>
+<p><code>pending_ids</code>：记录了消费者读取到的消息id列表，但是这些消息可能还没有处理，如果认为某个消息处理，需要调用<code>ack</code>命令。这样就确保了某个消息一定会被执行一次。</p>
+<p><code>消息内容：</code>是一个<code>键值对</code>的格式。</p>
+<p><code>Stream 中 消息的 ID：</code> 默认情况下，ID使用 <code>*</code> ，redis可以自动生成一个，格式为 <code>时间戳-序列号</code>，也可以自己指定，一般使用默认生成的即可，且后生成的id号要比之前生成的大。</p>
+</blockquote>
+<h1 id="3-命令">3、命令</h1>
+<h2 id="31-xadd">3.1 XADD</h2>
+<h3 id="311命令格式">3.1.1命令格式</h3>
+<blockquote>
+<p>xadd命令: 往Stream末尾添加消息，返回的是数据的id, <strong>xx-yy</strong> (xx指的是毫秒数,yy指的是在这个毫秒内的第几条消息)</p>
+</blockquote>
+<pre><code class="language-shell">xadd key [NOMKSTREAM] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|ID field value [field value ...]
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/1afd13840ee0481ead58e1b9416328b7tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xadd命令解释" loading="lazy"></figure>
+<h3 id="312举例">3.1.2举例</h3>
+<h4 id="3121向流中增加数据">3.1.2.1向流中增加数据</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan # 向stream-key这个流中增加一个 username 是zhangsan的数据 *表示自动生成id
+&quot;1635999858912-0&quot; # 返回的是ID
+127.0.0.1:6379&gt; keys *
+1) &quot;stream-key&quot; # 可以看到stream自动创建了
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3122向流中增加数据不自动创建流">3.1.2.2向流中增加数据，不自动创建流</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd not-exists-stream nomkstream * username lisi # 因为指定了nomkstream参数，而not-exists-stream之前不存在，所以加入失败
+(nil)
+127.0.0.1:6379&gt; keys *
+(empty array)
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3123手动指定id的值">3.1.2.3手动指定ID的值</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key 1-1 username lisi # 此处id的值是自己传递的1-1,而不是使用*自动生成
+&quot;1-1&quot; # 返回的是id的值
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3124设置一个固定大小的stream">3.1.2.4设置一个固定大小的Stream</h4>
+<h5 id="31241精确指定stream的大小">3.1.2.4.1精确指定Stream的大小</h5>
+<blockquote>
+<p>指定指定Stream的大小比模糊指定Stream的大小会稍微多少消耗一些性能。</p>
+</blockquote>
+<figure data-type="image" tabindex="3"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/1246c71b96ac4a14beca37207193cba6tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="精确限制流的长度" loading="lazy"></figure>
+<h5 id="31242模糊指定stream的大小">3.1.2.4.2模糊指定Stream的大小</h5>
+<blockquote>
+<p><code>~</code> 模糊指定流的大小，可以看到指定的是1，实际上已经到了3.</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key maxlen ~ 1 * first first
+&quot;1636001034141-0&quot;
+127.0.0.1:6379&gt; xadd stream-key maxlen ~ 1 * second second
+&quot;1636001044506-0&quot;
+127.0.0.1:6379&gt; xadd stream-key maxlen ~ 1 * third third
+&quot;1636001057846-0&quot;
+127.0.0.1:6379&gt; xinfo stream stream-key
+ 1) &quot;length&quot;
+ 2) (integer) 3
+ 3) &quot;radix-tree-keys&quot;
+ 4) (integer) 1
+ 5) &quot;radix-tree-nodes&quot;
+ 6) (integer) 2
+ 7) &quot;last-generated-id&quot;
+ 8) &quot;1636001057846-0&quot;
+ 9) &quot;groups&quot;
+10) (integer) 0
+11) &quot;first-entry&quot;
+12) 1) &quot;1636001034141-0&quot;
+    2) 1) &quot;first&quot;
+       2) &quot;first&quot;
+13) &quot;last-entry&quot;
+14) 1) &quot;1636001057846-0&quot;
+    2) 1) &quot;third&quot;
+       2) &quot;third&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="32xrange">3.2XRANGE</h2>
+<h3 id="321命令格式">3.2.1命令格式</h3>
+<blockquote>
+<p>获取stream中的数据</p>
+</blockquote>
+<pre><code class="language-shell">xrange key start end [COUNT count]
+</code></pre>
+<figure data-type="image" tabindex="4"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/5fb9744fe7d143dc8dbe03d9ef7f08b6tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xrange获取消息数据" loading="lazy"></figure>
+<h3 id="322准备数据">3.2.2准备数据</h3>
+<blockquote>
+<p>使用redis的事务操作，获取到同一毫秒产生的多条数据，时间戳一样，序列号不一样</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; multi
+OK
+127.0.0.1:6379(TX)&gt; xadd stream-key * username zhangsan
+QUEUED
+127.0.0.1:6379(TX)&gt; xadd stream-key * username lisi
+QUEUED
+127.0.0.1:6379(TX)&gt; exec
+1) &quot;1636003481706-0&quot;
+2) &quot;1636003481706-1&quot;
+127.0.0.1:6379&gt; xadd stream-key * username wangwu
+&quot;1636003499055-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="323举例">3.2.3举例</h3>
+<h4 id="3231获取所有的数据-和的使用">3.2.3.1获取所有的数据(<code>-</code>和<code>+</code>的使用)</h4>
+<blockquote>
+<p><code>-:</code> 表示最小id的值</p>
+<p><code>+:</code>表示最大id的值</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key - +
+1) 1) &quot;1636003481706-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+2) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+3) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3232获取指定id范围内的数据闭区间">3.2.3.2获取指定id范围内的数据，闭区间</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key 1636003481706-1 1636003499055-0
+1) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+2) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3233-获取指定id范围内的数据开区间">3.2.3.3 获取指定id范围内的数据，开区间</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key (1636003481706-0 (1636003499055-0
+1) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3234-获取某个毫秒后所有的数据">3.2.3.4 获取某个毫秒后所有的数据</h4>
+<blockquote>
+<p>直接写<code>毫秒</code>不写后面的序列号即可。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key 1636003481706 +
+1) 1) &quot;1636003481706-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+2) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+3) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3335-获取单条数据">3.3.3.5 获取单条数据</h4>
+<blockquote>
+<p><code>start</code>和<code>end</code>的值写的一样即可获取单条数据。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key 1636003499055-0 1636003499055-0
+1) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3336-获取固定条数的数据">3.3.3.6 获取固定条数的数据</h4>
+<blockquote>
+<p>使用 <code>count</code>进行限制</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key - + count 1
+1) 1) &quot;1636003481706-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="33-xrevrange">3.3 XREVRANGE</h2>
+<h3 id="331-命令格式">3.3.1 命令格式</h3>
+<blockquote>
+<p>反向查看stream中的消息</p>
+</blockquote>
+<pre><code class="language-shell">XREVRANGE key end start [COUNT count]
+</code></pre>
+<h2 id="34-xdel">3.4 XDEL</h2>
+<blockquote>
+<p>删除消息</p>
+</blockquote>
+<h3 id="341命令格式">3.4.1命令格式</h3>
+<pre><code class="language-shell">xdel key ID [ID ...]
+</code></pre>
+<h3 id="342-准备数据">3.4.2 准备数据</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan
+&quot;1636004176924-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username lisi
+&quot;1636004183638-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username wangwu
+&quot;1636004189211-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="341-举例">3.4.1 举例</h3>
+<blockquote>
+<p>往Stream中加入3条消息，然后删除第2条消息</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xdel stream-key 1636004183638-0
+(integer) 1 # 返回的是删除记录的数量
+127.0.0.1:6379&gt; xrang stream -key - +
+127.0.0.1:6379&gt; xrange stream-key - +
+1) 1) &quot;1636004176924-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+2) 1) &quot;1636004189211-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<blockquote>
+<p>需要注意的是，我们从Stream中删除一个消息，这个消息并不是被真正的删除了，而是被<strong>标记为删除</strong>，这个时候这个消息还是占据着内容空间的。如果所有Stream中所有的消息都被标记删除，这个时候才会回收内存空间。但是这个Stream并不会被删除。</p>
+</blockquote>
+<h2 id="35-xlen">3.5 xlen</h2>
+<h3 id="351-命令格式">3.5.1 命令格式</h3>
+<blockquote>
+<p>查看Stream中元素的长度</p>
+</blockquote>
+<pre><code class="language-shell">xlen key
+</code></pre>
+<h3 id="352-举例">3.5.2 举例</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan
+&quot;1636004690578-0&quot;
+127.0.0.1:6379&gt; xlen stream-key
+(integer) 1
+127.0.0.1:6379&gt; xlen not-exists-stream-key
+(integer) 0
+127.0.0.1:6379&gt;
+</code></pre>
+<blockquote>
+<p>如果<code>xlen</code>后方的<code>key</code>不存在则返回0，否则返回元素的个数。</p>
+</blockquote>
+<h2 id="36-xtrim">3.6 XTRIM</h2>
+<blockquote>
+<p>对Stream中的元素进行修剪</p>
+</blockquote>
+<h3 id="361命令格式">3.6.1命令格式</h3>
+<pre><code class="language-shell">xtrim key MAXLEN|MINID [=|~] threshold [LIMIT count]
+</code></pre>
+<h3 id="362-准备数据">3.6.2 准备数据</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt;  xadd stream-key * username zhangsan
+&quot;1636009745401-0&quot;
+127.0.0.1:6379&gt; multi
+OK
+127.0.0.1:6379(TX)&gt; xadd stream-key * username lisi
+QUEUED
+127.0.0.1:6379(TX)&gt; xadd stream-key * username wangwu
+QUEUED
+127.0.0.1:6379(TX)&gt; exec
+1) &quot;1636009763955-0&quot;
+2) &quot;1636009763955-1&quot;
+127.0.0.1:6379&gt; xadd stream-key * username zhaoliu
+&quot;1636009769625-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="363-举例">3.6.3 举例</h3>
+<h4 id="3631-maxlen精确限制">3.6.3.1 maxlen精确限制</h4>
+<blockquote>
+<p>保留<code>stream-key</code>这个Stream中最后的2个消息。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xtrim stream-key maxlen 2 # 保留最后的2个消息
+(integer) 2
+127.0.0.1:6379&gt; xrange stream-key - + # 可以看到之前加入的2个消息被删除了
+1) 1) &quot;1636009763955-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+2) 1) &quot;1636009769625-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhaoliu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="37xread">3.7XREAD</h2>
+<blockquote>
+<p><code>XREAD</code>只是读取消息，读取完之后并不会删除消息。 使用<code>XREAD</code>读取消息，是完全独立与消费者组的，多个客户端可以同时读取消息</p>
+</blockquote>
+<h3 id="371命令格式">3.7.1命令格式</h3>
+<pre><code class="language-shell">xread [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] ID [ID ...]
+</code></pre>
+<figure data-type="image" tabindex="5"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/9a1a40d523d84534bb41da206ad82251tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xread命令解释" loading="lazy"></figure>
+<h3 id="372-准备数据">3.7.2 准备数据</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan
+&quot;1636011801365-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username lisi
+&quot;1636011806261-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username wangwu
+&quot;1636011810905-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="373-举例">3.7.3 举例</h3>
+<h4 id="3731-获取用户名是wangwu的数据">3.7.3.1 获取用户名是wangwu的数据</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xread streams stream-key 1636011806261-0 # 此处写的是lisi的id，即读取到的数据需要是 &gt; 1636011806261-0
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636011810905-0&quot;
+         2) 1) &quot;username&quot;
+            2) &quot;wangwu&quot;
+</code></pre>
+<h4 id="3732获取2条数据">3.7.3.2获取2条数据</h4>
+<blockquote>
+<p><code>count</code>限制单次读取最后的消息，因为当前读取可能没有这么多。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xread count 2 streams stream-key 0-0
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636011801365-0&quot;
+         2) 1) &quot;username&quot;
+            2) &quot;zhangsan&quot;
+      2) 1) &quot;1636011806261-0&quot;
+         2) 1) &quot;username&quot;
+            2) &quot;lisi&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3733-非阻塞读取stream对尾的数据">3.7.3.3 非阻塞读取Stream对尾的数据</h4>
+<blockquote>
+<p>即读取队列尾的下一个消息，在非阻塞模式下始终是<code>nil</code></p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xread streams stream-key $
+(nil)
+</code></pre>
+<h4 id="3734-阻塞读取stream对尾的数据">3.7.3.4 阻塞读取Stream对尾的数据</h4>
+<blockquote>
+<p><strong>注意：</strong></p>
+<ol>
+<li><code>$</code>表示读取队列最新进来的一个消息，不是Stream的最后一个消息。是<code>xread block</code>执行后，再次使用<code>xadd</code>添加消息后，<code>xread block</code>才会返回。</li>
+<li><code>block 0</code>表示永久阻塞，当消息到来时，才接触阻塞。<code>block 1000</code>表示阻塞1000ms，如果1000ms还没有消息到来，则返回<code>nil</code></li>
+<li><code>xread进行顺序消费</code> 当使用xread进行顺序消息时，需要记住返回的消息id，同时下次调用xread时，需要将上次返回的消息id传递进去。</li>
+<li><code>xread</code>读取消息，完全无视消费组，此时<code>Stream</code>就可以理解为一个普通的list。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="6"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/9e63c3b9669c4884a2f1458731f7d079tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="阻塞读取对尾消息" loading="lazy"></figure>
+<h2 id="38消费组相关">3.8消费组相关</h2>
+<h3 id="381消费者组命令">3.8.1消费者组命令</h3>
+<figure data-type="image" tabindex="7"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/2434f632685943bfbc5713f9cb025382tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="消费者组命令" loading="lazy"></figure>
+<h3 id="382准备数据">3.8.2准备数据</h3>
+<pre><code class="language-shell">##1、创建Stream的名称是 stream-key
+##2、创建2个消息，aa和bb
+127.0.0.1:6379&gt; xadd stream-key * aa aa
+&quot;1636362619125-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * bb bb
+&quot;1636362623191-0&quot;
+</code></pre>
+<h3 id="383-创建消费者组">3.8.3 创建消费者组</h3>
+<pre><code class="language-shell">## 创建一个从头开始消费的消费者组
+xgroup create stream-key(Stream 名) g1(消费者组名) 0-0(表示从头开始消费)
+
+##创建一个从Stream最新的一个消息消费的消费者组。$表示从最后一个元素消费，不包括Stream中的最后一个元素，即消费最新的消息。
+xgroup create stream-key g2 $
+
+## 创建一个从某个消息之后消费的消费者组。1636362619125-0某个消息的具体的ID,这个g3消费者组中的消息都是大于&gt;这个id的消息。
+ #1636362619125-0 这个是上方aa消息的id的值
+xgroup create stream-key g3 1636362619125-0 
+</code></pre>
+<h3 id="384-消费消息">3.8.4 消费消息</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xreadgroup group g1(消费组名) c1(消费者名，自动创建) count 3(读取3条) streams stream-key(Stream 名) &gt;(从该消费者组中还未分配给另外的消费者的消息开始读取)
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636362619125-0&quot;
+         2) 1) &quot;aa&quot;
+            2) &quot;aa&quot;
+      2) 1) &quot;1636362623191-0&quot;
+         2) 1) &quot;bb&quot;
+            2) &quot;bb&quot;
+127.0.0.1:6379&gt; xreadgroup group g2 c1 count 3 streams stream-key &gt;
+(nil) # 返回 nil 是因为 g2消费组是从最新的一条信息开始读取(创建消费者组时使用了$)，需要在另外的窗口执行`xadd`命令，才可以再次读取到消息
+127.0.0.1:6379&gt; xreadgroup group g3 c1 count 3 streams stream-key &gt;  #只读取到一条消息是因为，在创建消费者组时，指定了aa消息的id，bb消息的id大于aa,所以读取出来了。
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636362623191-0&quot;
+         2) 1) &quot;bb&quot;
+            2) &quot;bb&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="385消费pending消息">3.8.5消费pending消息</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xgroup create stream-key g4 0-0
+OK
+127.0.0.1:6379&gt; xinfo consumers stream-key g1
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 2
+   5) &quot;idle&quot;
+   6) (integer) 88792
+127.0.0.1:6379&gt; xinfo consumers stream-key g4
+(empty array)
+127.0.0.1:6379&gt; xreadgroup group g1 c1 count 1 streams stream-key 1636362619125-0
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636362623191-0&quot;
+         2) 1) &quot;bb&quot;
+            2) &quot;bb&quot;
+127.0.0.1:6379&gt; xreadgroup group g4 c1 count 1 block 0 streams stream-key 1636362619125-0
+1) 1) &quot;stream-key&quot;
+   2) (empty array)
+127.0.0.1:6379&gt;
+</code></pre>
+<figure data-type="image" tabindex="8"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/d8c5725a26134e85903a265e37d21932tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="从消费者的pending列表中读取消息" loading="lazy"></figure>
+<h3 id="386-转移消费者的消息">3.8.6 转移消费者的消息</h3>
+<blockquote>
+<p>也可以通过<code>xautoclaim</code>来实现。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c1
+1) 1) &quot;1636362619125-0&quot;
+   2) &quot;c1&quot;
+   3) (integer) 2686183
+   4) (integer) 1
+2) 1) &quot;1636362623191-0&quot;
+   2) &quot;c1&quot;
+   3) (integer) 102274
+   4) (integer) 7
+127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c2
+(empty array)
+127.0.0.1:6379&gt; xclaim stream-key g1 c2 102274 1636362623191-0
+1) 1) &quot;1636362623191-0&quot;
+   2) 1) &quot;bb&quot;
+      2) &quot;bb&quot;
+127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c2
+1) 1) &quot;1636362623191-0&quot;
+   2) &quot;c2&quot;
+   3) (integer) 17616
+   4) (integer) 8
+127.0.0.1:6379&gt;
+</code></pre>
+<figure data-type="image" tabindex="9"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/5b5880f2a5f643b7bd7a35e18ce6350dtplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xclaim转移消息" loading="lazy"></figure>
+<h3 id="387-确认消息">3.8.7 确认消息</h3>
+<blockquote>
+<p>当通过消费者组进行消费消息后，对应的消息 ID 就会进入消费者的 PEL(正在处理的消息) 结构里，客户端处理完毕后使用 xack指令通知服务器，本条消息已经处理完毕，该消息 ID 就会从 PEL 中移除。</p>
+</blockquote>
+<pre><code class="language-shell">##消息内容中原有数据
+127.0.0.1:6379[1]&gt; xrange stream-key - +
+1) 1) &quot;1663494258926-0&quot;
+   2) 1) &quot;aa&quot;
+      2) &quot;aa&quot;
+2) 1) &quot;1663494263118-0&quot;
+   2) 1) &quot;bb&quot;
+      2) &quot;bb&quot;
+3) 1) &quot;1663494266979-0&quot;
+   2) 1) &quot;cc&quot;
+      2) &quot;cc&quot;
+4) 1) &quot;1663494602918-0&quot;
+   2) 1) &quot;dd&quot;
+      2) &quot;dd&quot;
+5) 1) &quot;1663499788198-0&quot;
+   2) 1) &quot;e&quot;
+      2) &quot;ee&quot;
+6) 1) &quot;1663502008488-0&quot;
+   2) 1) &quot;ff&quot;
+      2) &quot;ff&quot;
+7) 1) &quot;1663502019162-0&quot;
+   2) 1) &quot;gg&quot;
+      2) &quot;gg&quot;
+
+##消费组g7中消费情况 消费了两条消息（没有ack）
+127.0.0.1:6379[1]&gt; xinfo consumers stream-key g7
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 2
+   5) &quot;idle&quot;
+   6) (integer) 441931
+   
+ ##对消费者组g7中的消息id为‘1663502019162-0’进行ack
+127.0.0.1:6379[1]&gt; xack stream-key g7 1663502019162-0
+(integer) 1
+
+##重新查看ack中内容发现只有一条了
+127.0.0.1:6379[1]&gt; xinfo consumers stream-key g7
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 1
+   5) &quot;idle&quot;
+   6) (integer) 488658
+
+
+</code></pre>
+<h3 id="388-其他相关命令">3.8.8 其他相关命令</h3>
+<h4 id="3881-查看消费组中消费者的pending消息">3.8.8.1 查看消费组中消费者的pending消息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c2
+1) 1) &quot;1636362623191-0&quot;
+   2) &quot;c2&quot;
+   3) (integer) 1247680
+   4) (integer) 8
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3882-查看消费组中的消费者信息">3.8.8.2 查看消费组中的消费者信息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xinfo consumers stream-key g1
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 1
+   5) &quot;idle&quot;
+   6) (integer) 1474864
+2) 1) &quot;name&quot;
+   2) &quot;c2&quot;
+   3) &quot;pending&quot;
+   4) (integer) 1
+   5) &quot;idle&quot;
+   6) (integer) 1290069
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3883-查看消费组信息">3.8.8.3 查看消费组信息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xinfo groups stream-key
+1) 1) &quot;name&quot;
+   2) &quot;g1&quot;
+   3) &quot;consumers&quot;
+   4) (integer) 2
+   5) &quot;pending&quot;
+   6) (integer) 2
+   7) &quot;last-delivered-id&quot;
+   8) &quot;1636362623191-0&quot;
+2) 1) &quot;name&quot;
+   2) &quot;g2&quot;
+   3) &quot;consumers&quot;
+......
+</code></pre>
+<h4 id="3884-查看stream信息">3.8.8.4 查看Stream信息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xinfo stream stream-key
+ 1) &quot;length&quot;
+ 2) (integer) 2
+ 3) &quot;radix-tree-keys&quot;
+ 4) (integer) 1
+ 5) &quot;radix-tree-nodes&quot;
+ 6) (integer) 2
+ 7) &quot;last-generated-id&quot;
+ 8) &quot;1636362623191-0&quot;
+ 9) &quot;groups&quot;
+10) (integer) 4
+11) &quot;first-entry&quot;
+12) 1) &quot;1636362619125-0&quot;
+    2) 1) &quot;aa&quot;
+       2) &quot;aa&quot;
+13) &quot;last-entry&quot;
+14) 1) &quot;1636362623191-0&quot;
+    2) 1) &quot;bb&quot;
+       2) &quot;bb&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="4-注意点">4、注意点</h2>
+<h2 id="41-stream-消息积压怎么处理">4.1 Stream 消息积压怎么处理</h2>
+<blockquote>
+<p>消息积累太多，Stream 的链表岂不是很长，内容会不会爆掉?xdel指令又不会删除消息，它只是给消息做了个标志位。</p>
+<p>Redis考虑到了这一点，所以它提供了一个定长 Stream 功能。在 xadd 的指令提供一个定长长度 maxlen，就可以将老的消息干掉，确保最多不超过指定长度</p>
+</blockquote>
+<pre><code class="language-shell">##原来长度
+127.0.0.1:6379[1]&gt; xrange stream-key - +
+1) 1) &quot;1663494258926-0&quot;
+   2) 1) &quot;aa&quot;
+      2) &quot;aa&quot;
+2) 1) &quot;1663494263118-0&quot;
+   2) 1) &quot;bb&quot;
+      2) &quot;bb&quot;
+3) 1) &quot;1663494266979-0&quot;
+   2) 1) &quot;cc&quot;
+      2) &quot;cc&quot;
+4) 1) &quot;1663494602918-0&quot;
+   2) 1) &quot;dd&quot;
+      2) &quot;dd&quot;
+5) 1) &quot;1663499788198-0&quot;
+   2) 1) &quot;e&quot;
+      2) &quot;ee&quot;
+6) 1) &quot;1663502008488-0&quot;
+   2) 1) &quot;ff&quot;
+      2) &quot;ff&quot;
+7) 1) &quot;1663502019162-0&quot;
+   2) 1) &quot;gg&quot;
+      2) &quot;gg&quot;
+
+##加上maxlen限制长度
+127.0.0.1:6379[1]&gt; xadd stream-key maxlen  6 *  hh hh
+&quot;1663502741283-0&quot;
+127.0.0.1:6379[1]&gt; xrange stream-key - +
+1) 1) &quot;1663494266979-0&quot;
+   2) 1) &quot;cc&quot;
+      2) &quot;cc&quot;
+2) 1) &quot;1663494602918-0&quot;
+   2) 1) &quot;dd&quot;
+      2) &quot;dd&quot;
+3) 1) &quot;1663499788198-0&quot;
+   2) 1) &quot;e&quot;
+      2) &quot;ee&quot;
+4) 1) &quot;1663502008488-0&quot;
+   2) 1) &quot;ff&quot;
+      2) &quot;ff&quot;
+5) 1) &quot;1663502019162-0&quot;
+   2) 1) &quot;gg&quot;
+      2) &quot;gg&quot;
+6) 1) &quot;1663502741283-0&quot;
+   2) 1) &quot;hh&quot;
+      2) &quot;hh&quot;
+</code></pre>
+<h2 id="42消息如果忘记-ack-会怎样">4.2消息如果忘记 ACK 会怎样？</h2>
+<blockquote>
+<p>Stream 在每个消费者结构中保存了正在处理中的消息 ID 列表 PEL，如果消费者收到了消息处理完了但是没有回复 ack，就会导致 PEL 列表不断增长，如果有很多消费组的话，那么这个 PEL 占用的内存就会放大。</p>
+</blockquote>
+<figure data-type="image" tabindex="10"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/watermark,size_16,text_QDUxQ1RP5Y2a5a6i,color_FFFFFF,t_30,g_se,x_10,y_10,shadow_20,type_ZmFuZ3poZW5naGVpdGk=.png" alt="Redis进阶-Stream多播的可持久化的消息队列_客户端_11" loading="lazy"></figure>
+<h2 id="43pel-如何避免消息丢失">4.3PEL 如何避免消息丢失?</h2>
+<blockquote>
+<p>在客户端消费者读取 Stream 消息时，Redis 服务器将消息回复给客户端的过程中，客户端突然断开了连接，消息就丢失了。</p>
+<p>但是 PEL 里已经保存了发出去的消息 ID。待客户端重新连上之后，可以再次收到 PEL 中的消息 ID 列表。不过<strong>此时 xreadgroup 的起始消息ID 不能为参数&gt;，而必须是任意有效的消息 ID，一般将参数设为 0-0，表示读取所有的PEL 消息以及自 last_delivered_id 之后的新消息</strong></p>
+</blockquote>
+<h2 id="44-stream-的高可用">4.4 Stream 的高可用</h2>
+<blockquote>
+<p>Stream 的高可用是建立主从复制基础上的，它和其它数据结构的复制机制没有区别，也就是说在 Sentinel 和 Cluster 集群环境下 Stream 是可以支持高可用的。不过鉴于 Redis 的指令复制是异步的，在 failover 发生时，Redis 可能会丢失极小部分数据，这点 Redis 的其它数据结构也是一样的。</p>
+</blockquote>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#1-redis%E4%B8%ADstream%E7%9A%84%E7%89%B9%E7%82%B9">1、 Redis中Stream的特点</a></li>
+<li><a href="#2-stream%E7%9A%84%E7%BB%93%E6%9E%84">2、Stream的结构</a></li>
+<li><a href="#3-%E5%91%BD%E4%BB%A4">3、命令</a>
+<ul>
+<li><a href="#31-xadd">3.1 XADD</a>
+<ul>
+<li><a href="#311%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.1.1命令格式</a></li>
+<li><a href="#312%E4%B8%BE%E4%BE%8B">3.1.2举例</a>
+<ul>
+<li><a href="#3121%E5%90%91%E6%B5%81%E4%B8%AD%E5%A2%9E%E5%8A%A0%E6%95%B0%E6%8D%AE">3.1.2.1向流中增加数据</a></li>
+<li><a href="#3122%E5%90%91%E6%B5%81%E4%B8%AD%E5%A2%9E%E5%8A%A0%E6%95%B0%E6%8D%AE%E4%B8%8D%E8%87%AA%E5%8A%A8%E5%88%9B%E5%BB%BA%E6%B5%81">3.1.2.2向流中增加数据，不自动创建流</a></li>
+<li><a href="#3123%E6%89%8B%E5%8A%A8%E6%8C%87%E5%AE%9Aid%E7%9A%84%E5%80%BC">3.1.2.3手动指定ID的值</a></li>
+<li><a href="#3124%E8%AE%BE%E7%BD%AE%E4%B8%80%E4%B8%AA%E5%9B%BA%E5%AE%9A%E5%A4%A7%E5%B0%8F%E7%9A%84stream">3.1.2.4设置一个固定大小的Stream</a>
+<ul>
+<li><a href="#31241%E7%B2%BE%E7%A1%AE%E6%8C%87%E5%AE%9Astream%E7%9A%84%E5%A4%A7%E5%B0%8F">3.1.2.4.1精确指定Stream的大小</a></li>
+<li><a href="#31242%E6%A8%A1%E7%B3%8A%E6%8C%87%E5%AE%9Astream%E7%9A%84%E5%A4%A7%E5%B0%8F">3.1.2.4.2模糊指定Stream的大小</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#32xrange">3.2XRANGE</a>
+<ul>
+<li><a href="#321%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.2.1命令格式</a></li>
+<li><a href="#322%E5%87%86%E5%A4%87%E6%95%B0%E6%8D%AE">3.2.2准备数据</a></li>
+<li><a href="#323%E4%B8%BE%E4%BE%8B">3.2.3举例</a>
+<ul>
+<li><a href="#3231%E8%8E%B7%E5%8F%96%E6%89%80%E6%9C%89%E7%9A%84%E6%95%B0%E6%8D%AE-%E5%92%8C%E7%9A%84%E4%BD%BF%E7%94%A8">3.2.3.1获取所有的数据(<code>-</code>和<code>+</code>的使用)</a></li>
+<li><a href="#3232%E8%8E%B7%E5%8F%96%E6%8C%87%E5%AE%9Aid%E8%8C%83%E5%9B%B4%E5%86%85%E7%9A%84%E6%95%B0%E6%8D%AE%E9%97%AD%E5%8C%BA%E9%97%B4">3.2.3.2获取指定id范围内的数据，闭区间</a></li>
+<li><a href="#3233-%E8%8E%B7%E5%8F%96%E6%8C%87%E5%AE%9Aid%E8%8C%83%E5%9B%B4%E5%86%85%E7%9A%84%E6%95%B0%E6%8D%AE%E5%BC%80%E5%8C%BA%E9%97%B4">3.2.3.3 获取指定id范围内的数据，开区间</a></li>
+<li><a href="#3234-%E8%8E%B7%E5%8F%96%E6%9F%90%E4%B8%AA%E6%AF%AB%E7%A7%92%E5%90%8E%E6%89%80%E6%9C%89%E7%9A%84%E6%95%B0%E6%8D%AE">3.2.3.4 获取某个毫秒后所有的数据</a></li>
+<li><a href="#3335-%E8%8E%B7%E5%8F%96%E5%8D%95%E6%9D%A1%E6%95%B0%E6%8D%AE">3.3.3.5 获取单条数据</a></li>
+<li><a href="#3336-%E8%8E%B7%E5%8F%96%E5%9B%BA%E5%AE%9A%E6%9D%A1%E6%95%B0%E7%9A%84%E6%95%B0%E6%8D%AE">3.3.3.6 获取固定条数的数据</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#33-xrevrange">3.3 XREVRANGE</a>
+<ul>
+<li><a href="#331-%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.3.1 命令格式</a></li>
+</ul>
+</li>
+<li><a href="#34-xdel">3.4 XDEL</a>
+<ul>
+<li><a href="#341%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.4.1命令格式</a></li>
+<li><a href="#342-%E5%87%86%E5%A4%87%E6%95%B0%E6%8D%AE">3.4.2 准备数据</a></li>
+<li><a href="#341-%E4%B8%BE%E4%BE%8B">3.4.1 举例</a></li>
+</ul>
+</li>
+<li><a href="#35-xlen">3.5 xlen</a>
+<ul>
+<li><a href="#351-%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.5.1 命令格式</a></li>
+<li><a href="#352-%E4%B8%BE%E4%BE%8B">3.5.2 举例</a></li>
+</ul>
+</li>
+<li><a href="#36-xtrim">3.6 XTRIM</a>
+<ul>
+<li><a href="#361%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.6.1命令格式</a></li>
+<li><a href="#362-%E5%87%86%E5%A4%87%E6%95%B0%E6%8D%AE">3.6.2 准备数据</a></li>
+<li><a href="#363-%E4%B8%BE%E4%BE%8B">3.6.3 举例</a>
+<ul>
+<li><a href="#3631-maxlen%E7%B2%BE%E7%A1%AE%E9%99%90%E5%88%B6">3.6.3.1 maxlen精确限制</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#37xread">3.7XREAD</a>
+<ul>
+<li><a href="#371%E5%91%BD%E4%BB%A4%E6%A0%BC%E5%BC%8F">3.7.1命令格式</a></li>
+<li><a href="#372-%E5%87%86%E5%A4%87%E6%95%B0%E6%8D%AE">3.7.2 准备数据</a></li>
+<li><a href="#373-%E4%B8%BE%E4%BE%8B">3.7.3 举例</a>
+<ul>
+<li><a href="#3731-%E8%8E%B7%E5%8F%96%E7%94%A8%E6%88%B7%E5%90%8D%E6%98%AFwangwu%E7%9A%84%E6%95%B0%E6%8D%AE">3.7.3.1 获取用户名是wangwu的数据</a></li>
+<li><a href="#3732%E8%8E%B7%E5%8F%962%E6%9D%A1%E6%95%B0%E6%8D%AE">3.7.3.2获取2条数据</a></li>
+<li><a href="#3733-%E9%9D%9E%E9%98%BB%E5%A1%9E%E8%AF%BB%E5%8F%96stream%E5%AF%B9%E5%B0%BE%E7%9A%84%E6%95%B0%E6%8D%AE">3.7.3.3 非阻塞读取Stream对尾的数据</a></li>
+<li><a href="#3734-%E9%98%BB%E5%A1%9E%E8%AF%BB%E5%8F%96stream%E5%AF%B9%E5%B0%BE%E7%9A%84%E6%95%B0%E6%8D%AE">3.7.3.4 阻塞读取Stream对尾的数据</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#38%E6%B6%88%E8%B4%B9%E7%BB%84%E7%9B%B8%E5%85%B3">3.8消费组相关</a>
+<ul>
+<li><a href="#381%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84%E5%91%BD%E4%BB%A4">3.8.1消费者组命令</a></li>
+<li><a href="#382%E5%87%86%E5%A4%87%E6%95%B0%E6%8D%AE">3.8.2准备数据</a></li>
+<li><a href="#383-%E5%88%9B%E5%BB%BA%E6%B6%88%E8%B4%B9%E8%80%85%E7%BB%84">3.8.3 创建消费者组</a></li>
+<li><a href="#384-%E6%B6%88%E8%B4%B9%E6%B6%88%E6%81%AF">3.8.4 消费消息</a></li>
+<li><a href="#385%E6%B6%88%E8%B4%B9pending%E6%B6%88%E6%81%AF">3.8.5消费pending消息</a></li>
+<li><a href="#386-%E8%BD%AC%E7%A7%BB%E6%B6%88%E8%B4%B9%E8%80%85%E7%9A%84%E6%B6%88%E6%81%AF">3.8.6 转移消费者的消息</a></li>
+<li><a href="#387-%E7%A1%AE%E8%AE%A4%E6%B6%88%E6%81%AF">3.8.7 确认消息</a></li>
+<li><a href="#388-%E5%85%B6%E4%BB%96%E7%9B%B8%E5%85%B3%E5%91%BD%E4%BB%A4">3.8.8 其他相关命令</a>
+<ul>
+<li><a href="#3881-%E6%9F%A5%E7%9C%8B%E6%B6%88%E8%B4%B9%E7%BB%84%E4%B8%AD%E6%B6%88%E8%B4%B9%E8%80%85%E7%9A%84pending%E6%B6%88%E6%81%AF">3.8.8.1 查看消费组中消费者的pending消息</a></li>
+<li><a href="#3882-%E6%9F%A5%E7%9C%8B%E6%B6%88%E8%B4%B9%E7%BB%84%E4%B8%AD%E7%9A%84%E6%B6%88%E8%B4%B9%E8%80%85%E4%BF%A1%E6%81%AF">3.8.8.2 查看消费组中的消费者信息</a></li>
+<li><a href="#3883-%E6%9F%A5%E7%9C%8B%E6%B6%88%E8%B4%B9%E7%BB%84%E4%BF%A1%E6%81%AF">3.8.8.3 查看消费组信息</a></li>
+<li><a href="#3884-%E6%9F%A5%E7%9C%8Bstream%E4%BF%A1%E6%81%AF">3.8.8.4 查看Stream信息</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#4-%E6%B3%A8%E6%84%8F%E7%82%B9">4、注意点</a></li>
+<li><a href="#41-stream-%E6%B6%88%E6%81%AF%E7%A7%AF%E5%8E%8B%E6%80%8E%E4%B9%88%E5%A4%84%E7%90%86">4.1 Stream 消息积压怎么处理</a></li>
+<li><a href="#42%E6%B6%88%E6%81%AF%E5%A6%82%E6%9E%9C%E5%BF%98%E8%AE%B0-ack-%E4%BC%9A%E6%80%8E%E6%A0%B7">4.2消息如果忘记 ACK 会怎样？</a></li>
+<li><a href="#43pel-%E5%A6%82%E4%BD%95%E9%81%BF%E5%85%8D%E6%B6%88%E6%81%AF%E4%B8%A2%E5%A4%B1">4.3PEL 如何避免消息丢失?</a></li>
+<li><a href="#44-stream-%E7%9A%84%E9%AB%98%E5%8F%AF%E7%94%A8">4.4 Stream 的高可用</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://CatearMax.github.io/post/linkedlist/">
+              <h3 class="post-title">
+                LinkedList
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://CatearMax.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

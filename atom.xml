@@ -1,0 +1,1976 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://CatearMax.github.io</id>
+    <title>Gridea</title>
+    <updated>2022-09-18T12:19:19.471Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://CatearMax.github.io"/>
+    <link rel="self" href="https://CatearMax.github.io/atom.xml"/>
+    <subtitle>温故而知新</subtitle>
+    <logo>https://CatearMax.github.io/images/avatar.png</logo>
+    <icon>https://CatearMax.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2022, Gridea</rights>
+    <entry>
+        <title type="html"><![CDATA[RedisStream]]></title>
+        <id>https://CatearMax.github.io/post/redisstream/</id>
+        <link href="https://CatearMax.github.io/post/redisstream/">
+        </link>
+        <updated>2022-09-18T12:17:44.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="1-redis中stream的特点">1、 Redis中Stream的特点</h1>
+<blockquote>
+<ul>
+<li>
+<p>Redis Stream 的结构如上图所示，它有一个消息链表，将所有加入的消息都串起来，每个消息都有一个唯一的 ID 和对应的内容</p>
+</li>
+<li>
+<p>消息是持久化的，Redis 重启后，内容还在。</p>
+</li>
+<li>
+<p>每个 Stream 都有唯一的名称，它就是 Redis 的 key，首次使用 xadd 指令追加消息时自动创建。</p>
+</li>
+<li>
+<p>每个 Stream 都可以挂多个消费组，每个消费组会有个游标last_delivered_id 在 Stream数组之上往前移动，表示当前消费组已经消费到哪条消息了。</p>
+</li>
+<li>
+<p>每个消费组都有一个 Stream内唯一的名称，消费组不会自动创建，它需要单独的指令 xgroup create 进行创建，需要指定从 Stream 的某个消息 ID 开始消费，这个 ID 用来初始化 last_delivered_id 变量。</p>
+</li>
+<li>
+<p>每个消费组 (Consumer Group) 的状态都是独立的，相互不受影响，即同一份Stream 内部的消息会被每个消费组都消费到。</p>
+</li>
+<li>
+<p>同一个消费组 (Consumer Group) 可以挂接多个消费者 (Consumer)，这些消费者之间是竞争关系，任意一个消费者读取了消息都会使游标 last_delivered_id 往前移动。每个消费者有一个组内唯一名称。</p>
+</li>
+<li>
+<p>消费者 (Consumer) 内部会有个状态变量 pending_ids，它记录了当前已经被客户端读取的消息，但是还没有 ack。如果客户端没有 ack，这个变量里面的消息 ID 会越来越多，一旦某个消息被 ack，它就开始减少。这个 pending_ids 变量在 Redis 官方被称之为 PEL （ Pending Entries List），这是一个很核心的数据结构，它用来确保客户端至少消费了消息一次，而不会在网络传输的中途丢失了没处理。</p>
+</li>
+</ul>
+</blockquote>
+<h1 id="2-stream的结构">2、Stream的结构</h1>
+<figure data-type="image" tabindex="1"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/08713958918f49958b0a28e32f646271tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="redis stream 结构图" loading="lazy"></figure>
+<blockquote>
+<p>解释：</p>
+<p><code>消费者组：</code> Consumer Group,即使用 <code>XGROUP CREATE</code> 命令创建的，一个消费者组中可以存在多个消费者，这些消费者之间是<code>竞争</code>关系。</p>
+<ol>
+<li>同一条消息，只能被这个消费者组中的某个消费者获取。</li>
+<li>多个消费者之间是相互独立的，互不干扰。</li>
+</ol>
+<p><code>消费者：</code> Consumer 消费消息。</p>
+<p><code>last_delivered_id：</code> 这个id保证了在同一个消费者组中，一个消息只能被一个消费者获取。每当消费者组的某个消费者读取到了这个消息后，这个last_delivered_id的值会往后移动一位，保证消费者不会读取到重复的消息。</p>
+<p><code>pending_ids</code>：记录了消费者读取到的消息id列表，但是这些消息可能还没有处理，如果认为某个消息处理，需要调用<code>ack</code>命令。这样就确保了某个消息一定会被执行一次。</p>
+<p><code>消息内容：</code>是一个<code>键值对</code>的格式。</p>
+<p><code>Stream 中 消息的 ID：</code> 默认情况下，ID使用 <code>*</code> ，redis可以自动生成一个，格式为 <code>时间戳-序列号</code>，也可以自己指定，一般使用默认生成的即可，且后生成的id号要比之前生成的大。</p>
+</blockquote>
+<h1 id="3-命令">3、命令</h1>
+<h2 id="31-xadd">3.1 XADD</h2>
+<h3 id="311命令格式">3.1.1命令格式</h3>
+<blockquote>
+<p>xadd命令: 往Stream末尾添加消息，返回的是数据的id, <strong>xx-yy</strong> (xx指的是毫秒数,yy指的是在这个毫秒内的第几条消息)</p>
+</blockquote>
+<pre><code class="language-shell">xadd key [NOMKSTREAM] [MAXLEN|MINID [=|~] threshold [LIMIT count]] *|ID field value [field value ...]
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/1afd13840ee0481ead58e1b9416328b7tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xadd命令解释" loading="lazy"></figure>
+<h3 id="312举例">3.1.2举例</h3>
+<h4 id="3121向流中增加数据">3.1.2.1向流中增加数据</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan # 向stream-key这个流中增加一个 username 是zhangsan的数据 *表示自动生成id
+&quot;1635999858912-0&quot; # 返回的是ID
+127.0.0.1:6379&gt; keys *
+1) &quot;stream-key&quot; # 可以看到stream自动创建了
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3122向流中增加数据不自动创建流">3.1.2.2向流中增加数据，不自动创建流</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd not-exists-stream nomkstream * username lisi # 因为指定了nomkstream参数，而not-exists-stream之前不存在，所以加入失败
+(nil)
+127.0.0.1:6379&gt; keys *
+(empty array)
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3123手动指定id的值">3.1.2.3手动指定ID的值</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key 1-1 username lisi # 此处id的值是自己传递的1-1,而不是使用*自动生成
+&quot;1-1&quot; # 返回的是id的值
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3124设置一个固定大小的stream">3.1.2.4设置一个固定大小的Stream</h4>
+<h5 id="31241精确指定stream的大小">3.1.2.4.1精确指定Stream的大小</h5>
+<blockquote>
+<p>指定指定Stream的大小比模糊指定Stream的大小会稍微多少消耗一些性能。</p>
+</blockquote>
+<figure data-type="image" tabindex="3"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/1246c71b96ac4a14beca37207193cba6tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="精确限制流的长度" loading="lazy"></figure>
+<h5 id="31242模糊指定stream的大小">3.1.2.4.2模糊指定Stream的大小</h5>
+<blockquote>
+<p><code>~</code> 模糊指定流的大小，可以看到指定的是1，实际上已经到了3.</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key maxlen ~ 1 * first first
+&quot;1636001034141-0&quot;
+127.0.0.1:6379&gt; xadd stream-key maxlen ~ 1 * second second
+&quot;1636001044506-0&quot;
+127.0.0.1:6379&gt; xadd stream-key maxlen ~ 1 * third third
+&quot;1636001057846-0&quot;
+127.0.0.1:6379&gt; xinfo stream stream-key
+ 1) &quot;length&quot;
+ 2) (integer) 3
+ 3) &quot;radix-tree-keys&quot;
+ 4) (integer) 1
+ 5) &quot;radix-tree-nodes&quot;
+ 6) (integer) 2
+ 7) &quot;last-generated-id&quot;
+ 8) &quot;1636001057846-0&quot;
+ 9) &quot;groups&quot;
+10) (integer) 0
+11) &quot;first-entry&quot;
+12) 1) &quot;1636001034141-0&quot;
+    2) 1) &quot;first&quot;
+       2) &quot;first&quot;
+13) &quot;last-entry&quot;
+14) 1) &quot;1636001057846-0&quot;
+    2) 1) &quot;third&quot;
+       2) &quot;third&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="32xrange">3.2XRANGE</h2>
+<h3 id="321命令格式">3.2.1命令格式</h3>
+<blockquote>
+<p>获取stream中的数据</p>
+</blockquote>
+<pre><code class="language-shell">xrange key start end [COUNT count]
+</code></pre>
+<figure data-type="image" tabindex="4"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/5fb9744fe7d143dc8dbe03d9ef7f08b6tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xrange获取消息数据" loading="lazy"></figure>
+<h3 id="322准备数据">3.2.2准备数据</h3>
+<blockquote>
+<p>使用redis的事务操作，获取到同一毫秒产生的多条数据，时间戳一样，序列号不一样</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; multi
+OK
+127.0.0.1:6379(TX)&gt; xadd stream-key * username zhangsan
+QUEUED
+127.0.0.1:6379(TX)&gt; xadd stream-key * username lisi
+QUEUED
+127.0.0.1:6379(TX)&gt; exec
+1) &quot;1636003481706-0&quot;
+2) &quot;1636003481706-1&quot;
+127.0.0.1:6379&gt; xadd stream-key * username wangwu
+&quot;1636003499055-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="323举例">3.2.3举例</h3>
+<h4 id="3231获取所有的数据-和的使用">3.2.3.1获取所有的数据(<code>-</code>和<code>+</code>的使用)</h4>
+<blockquote>
+<p><code>-:</code> 表示最小id的值</p>
+<p><code>+:</code>表示最大id的值</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key - +
+1) 1) &quot;1636003481706-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+2) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+3) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3232获取指定id范围内的数据闭区间">3.2.3.2获取指定id范围内的数据，闭区间</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key 1636003481706-1 1636003499055-0
+1) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+2) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3233-获取指定id范围内的数据开区间">3.2.3.3 获取指定id范围内的数据，开区间</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key (1636003481706-0 (1636003499055-0
+1) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3234-获取某个毫秒后所有的数据">3.2.3.4 获取某个毫秒后所有的数据</h4>
+<blockquote>
+<p>直接写<code>毫秒</code>不写后面的序列号即可。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key 1636003481706 +
+1) 1) &quot;1636003481706-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+2) 1) &quot;1636003481706-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;lisi&quot;
+3) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3335-获取单条数据">3.3.3.5 获取单条数据</h4>
+<blockquote>
+<p><code>start</code>和<code>end</code>的值写的一样即可获取单条数据。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key 1636003499055-0 1636003499055-0
+1) 1) &quot;1636003499055-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3336-获取固定条数的数据">3.3.3.6 获取固定条数的数据</h4>
+<blockquote>
+<p>使用 <code>count</code>进行限制</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xrange stream-key - + count 1
+1) 1) &quot;1636003481706-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="33-xrevrange">3.3 XREVRANGE</h2>
+<h3 id="331-命令格式">3.3.1 命令格式</h3>
+<blockquote>
+<p>反向查看stream中的消息</p>
+</blockquote>
+<pre><code class="language-shell">XREVRANGE key end start [COUNT count]
+</code></pre>
+<h2 id="34-xdel">3.4 XDEL</h2>
+<blockquote>
+<p>删除消息</p>
+</blockquote>
+<h3 id="341命令格式">3.4.1命令格式</h3>
+<pre><code class="language-shell">xdel key ID [ID ...]
+</code></pre>
+<h3 id="342-准备数据">3.4.2 准备数据</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan
+&quot;1636004176924-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username lisi
+&quot;1636004183638-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username wangwu
+&quot;1636004189211-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="341-举例">3.4.1 举例</h3>
+<blockquote>
+<p>往Stream中加入3条消息，然后删除第2条消息</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xdel stream-key 1636004183638-0
+(integer) 1 # 返回的是删除记录的数量
+127.0.0.1:6379&gt; xrang stream -key - +
+127.0.0.1:6379&gt; xrange stream-key - +
+1) 1) &quot;1636004176924-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhangsan&quot;
+2) 1) &quot;1636004189211-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<blockquote>
+<p>需要注意的是，我们从Stream中删除一个消息，这个消息并不是被真正的删除了，而是被<strong>标记为删除</strong>，这个时候这个消息还是占据着内容空间的。如果所有Stream中所有的消息都被标记删除，这个时候才会回收内存空间。但是这个Stream并不会被删除。</p>
+</blockquote>
+<h2 id="35-xlen">3.5 xlen</h2>
+<h3 id="351-命令格式">3.5.1 命令格式</h3>
+<blockquote>
+<p>查看Stream中元素的长度</p>
+</blockquote>
+<pre><code class="language-shell">xlen key
+</code></pre>
+<h3 id="352-举例">3.5.2 举例</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan
+&quot;1636004690578-0&quot;
+127.0.0.1:6379&gt; xlen stream-key
+(integer) 1
+127.0.0.1:6379&gt; xlen not-exists-stream-key
+(integer) 0
+127.0.0.1:6379&gt;
+</code></pre>
+<blockquote>
+<p>如果<code>xlen</code>后方的<code>key</code>不存在则返回0，否则返回元素的个数。</p>
+</blockquote>
+<h2 id="36-xtrim">3.6 XTRIM</h2>
+<blockquote>
+<p>对Stream中的元素进行修剪</p>
+</blockquote>
+<h3 id="361命令格式">3.6.1命令格式</h3>
+<pre><code class="language-shell">xtrim key MAXLEN|MINID [=|~] threshold [LIMIT count]
+</code></pre>
+<h3 id="362-准备数据">3.6.2 准备数据</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt;  xadd stream-key * username zhangsan
+&quot;1636009745401-0&quot;
+127.0.0.1:6379&gt; multi
+OK
+127.0.0.1:6379(TX)&gt; xadd stream-key * username lisi
+QUEUED
+127.0.0.1:6379(TX)&gt; xadd stream-key * username wangwu
+QUEUED
+127.0.0.1:6379(TX)&gt; exec
+1) &quot;1636009763955-0&quot;
+2) &quot;1636009763955-1&quot;
+127.0.0.1:6379&gt; xadd stream-key * username zhaoliu
+&quot;1636009769625-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="363-举例">3.6.3 举例</h3>
+<h4 id="3631-maxlen精确限制">3.6.3.1 maxlen精确限制</h4>
+<blockquote>
+<p>保留<code>stream-key</code>这个Stream中最后的2个消息。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xtrim stream-key maxlen 2 # 保留最后的2个消息
+(integer) 2
+127.0.0.1:6379&gt; xrange stream-key - + # 可以看到之前加入的2个消息被删除了
+1) 1) &quot;1636009763955-1&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;wangwu&quot;
+2) 1) &quot;1636009769625-0&quot;
+   2) 1) &quot;username&quot;
+      2) &quot;zhaoliu&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="37xread">3.7XREAD</h2>
+<blockquote>
+<p><code>XREAD</code>只是读取消息，读取完之后并不会删除消息。 使用<code>XREAD</code>读取消息，是完全独立与消费者组的，多个客户端可以同时读取消息</p>
+</blockquote>
+<h3 id="371命令格式">3.7.1命令格式</h3>
+<pre><code class="language-shell">xread [COUNT count] [BLOCK milliseconds] STREAMS key [key ...] ID [ID ...]
+</code></pre>
+<figure data-type="image" tabindex="5"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/9a1a40d523d84534bb41da206ad82251tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xread命令解释" loading="lazy"></figure>
+<h3 id="372-准备数据">3.7.2 准备数据</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xadd stream-key * username zhangsan
+&quot;1636011801365-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username lisi
+&quot;1636011806261-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * username wangwu
+&quot;1636011810905-0&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="373-举例">3.7.3 举例</h3>
+<h4 id="3731-获取用户名是wangwu的数据">3.7.3.1 获取用户名是wangwu的数据</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xread streams stream-key 1636011806261-0 # 此处写的是lisi的id，即读取到的数据需要是 &gt; 1636011806261-0
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636011810905-0&quot;
+         2) 1) &quot;username&quot;
+            2) &quot;wangwu&quot;
+</code></pre>
+<h4 id="3732获取2条数据">3.7.3.2获取2条数据</h4>
+<blockquote>
+<p><code>count</code>限制单次读取最后的消息，因为当前读取可能没有这么多。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xread count 2 streams stream-key 0-0
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636011801365-0&quot;
+         2) 1) &quot;username&quot;
+            2) &quot;zhangsan&quot;
+      2) 1) &quot;1636011806261-0&quot;
+         2) 1) &quot;username&quot;
+            2) &quot;lisi&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3733-非阻塞读取stream对尾的数据">3.7.3.3 非阻塞读取Stream对尾的数据</h4>
+<blockquote>
+<p>即读取队列尾的下一个消息，在非阻塞模式下始终是<code>nil</code></p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xread streams stream-key $
+(nil)
+</code></pre>
+<h4 id="3734-阻塞读取stream对尾的数据">3.7.3.4 阻塞读取Stream对尾的数据</h4>
+<blockquote>
+<p><strong>注意：</strong></p>
+<ol>
+<li><code>$</code>表示读取队列最新进来的一个消息，不是Stream的最后一个消息。是<code>xread block</code>执行后，再次使用<code>xadd</code>添加消息后，<code>xread block</code>才会返回。</li>
+<li><code>block 0</code>表示永久阻塞，当消息到来时，才接触阻塞。<code>block 1000</code>表示阻塞1000ms，如果1000ms还没有消息到来，则返回<code>nil</code></li>
+<li><code>xread进行顺序消费</code> 当使用xread进行顺序消息时，需要记住返回的消息id，同时下次调用xread时，需要将上次返回的消息id传递进去。</li>
+<li><code>xread</code>读取消息，完全无视消费组，此时<code>Stream</code>就可以理解为一个普通的list。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="6"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/9e63c3b9669c4884a2f1458731f7d079tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="阻塞读取对尾消息" loading="lazy"></figure>
+<h2 id="38消费组相关">3.8消费组相关</h2>
+<h3 id="381消费者组命令">3.8.1消费者组命令</h3>
+<figure data-type="image" tabindex="7"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/2434f632685943bfbc5713f9cb025382tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="消费者组命令" loading="lazy"></figure>
+<h3 id="382准备数据">3.8.2准备数据</h3>
+<pre><code class="language-shell">##1、创建Stream的名称是 stream-key
+##2、创建2个消息，aa和bb
+127.0.0.1:6379&gt; xadd stream-key * aa aa
+&quot;1636362619125-0&quot;
+127.0.0.1:6379&gt; xadd stream-key * bb bb
+&quot;1636362623191-0&quot;
+</code></pre>
+<h3 id="383-创建消费者组">3.8.3 创建消费者组</h3>
+<pre><code class="language-shell">## 创建一个从头开始消费的消费者组
+xgroup create stream-key(Stream 名) g1(消费者组名) 0-0(表示从头开始消费)
+
+##创建一个从Stream最新的一个消息消费的消费者组。$表示从最后一个元素消费，不包括Stream中的最后一个元素，即消费最新的消息。
+xgroup create stream-key g2 $
+
+## 创建一个从某个消息之后消费的消费者组。1636362619125-0某个消息的具体的ID,这个g3消费者组中的消息都是大于&gt;这个id的消息。
+ #1636362619125-0 这个是上方aa消息的id的值
+xgroup create stream-key g3 1636362619125-0 
+</code></pre>
+<h3 id="384-消费消息">3.8.4 消费消息</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xreadgroup group g1(消费组名) c1(消费者名，自动创建) count 3(读取3条) streams stream-key(Stream 名) &gt;(从该消费者组中还未分配给另外的消费者的消息开始读取)
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636362619125-0&quot;
+         2) 1) &quot;aa&quot;
+            2) &quot;aa&quot;
+      2) 1) &quot;1636362623191-0&quot;
+         2) 1) &quot;bb&quot;
+            2) &quot;bb&quot;
+127.0.0.1:6379&gt; xreadgroup group g2 c1 count 3 streams stream-key &gt;
+(nil) # 返回 nil 是因为 g2消费组是从最新的一条信息开始读取(创建消费者组时使用了$)，需要在另外的窗口执行`xadd`命令，才可以再次读取到消息
+127.0.0.1:6379&gt; xreadgroup group g3 c1 count 3 streams stream-key &gt;  #只读取到一条消息是因为，在创建消费者组时，指定了aa消息的id，bb消息的id大于aa,所以读取出来了。
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636362623191-0&quot;
+         2) 1) &quot;bb&quot;
+            2) &quot;bb&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h3 id="385消费pending消息">3.8.5消费pending消息</h3>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xgroup create stream-key g4 0-0
+OK
+127.0.0.1:6379&gt; xinfo consumers stream-key g1
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 2
+   5) &quot;idle&quot;
+   6) (integer) 88792
+127.0.0.1:6379&gt; xinfo consumers stream-key g4
+(empty array)
+127.0.0.1:6379&gt; xreadgroup group g1 c1 count 1 streams stream-key 1636362619125-0
+1) 1) &quot;stream-key&quot;
+   2) 1) 1) &quot;1636362623191-0&quot;
+         2) 1) &quot;bb&quot;
+            2) &quot;bb&quot;
+127.0.0.1:6379&gt; xreadgroup group g4 c1 count 1 block 0 streams stream-key 1636362619125-0
+1) 1) &quot;stream-key&quot;
+   2) (empty array)
+127.0.0.1:6379&gt;
+</code></pre>
+<figure data-type="image" tabindex="8"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/d8c5725a26134e85903a265e37d21932tplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="从消费者的pending列表中读取消息" loading="lazy"></figure>
+<h3 id="386-转移消费者的消息">3.8.6 转移消费者的消息</h3>
+<blockquote>
+<p>也可以通过<code>xautoclaim</code>来实现。</p>
+</blockquote>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c1
+1) 1) &quot;1636362619125-0&quot;
+   2) &quot;c1&quot;
+   3) (integer) 2686183
+   4) (integer) 1
+2) 1) &quot;1636362623191-0&quot;
+   2) &quot;c1&quot;
+   3) (integer) 102274
+   4) (integer) 7
+127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c2
+(empty array)
+127.0.0.1:6379&gt; xclaim stream-key g1 c2 102274 1636362623191-0
+1) 1) &quot;1636362623191-0&quot;
+   2) 1) &quot;bb&quot;
+      2) &quot;bb&quot;
+127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c2
+1) 1) &quot;1636362623191-0&quot;
+   2) &quot;c2&quot;
+   3) (integer) 17616
+   4) (integer) 8
+127.0.0.1:6379&gt;
+</code></pre>
+<figure data-type="image" tabindex="9"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/5b5880f2a5f643b7bd7a35e18ce6350dtplv-k3u1fbpfcp-zoom-in-crop-mark4536000.png" alt="xclaim转移消息" loading="lazy"></figure>
+<h3 id="387-确认消息">3.8.7 确认消息</h3>
+<blockquote>
+<p>当通过消费者组进行消费消息后，对应的消息 ID 就会进入消费者的 PEL(正在处理的消息) 结构里，客户端处理完毕后使用 xack指令通知服务器，本条消息已经处理完毕，该消息 ID 就会从 PEL 中移除。</p>
+</blockquote>
+<pre><code class="language-shell">##消息内容中原有数据
+127.0.0.1:6379[1]&gt; xrange stream-key - +
+1) 1) &quot;1663494258926-0&quot;
+   2) 1) &quot;aa&quot;
+      2) &quot;aa&quot;
+2) 1) &quot;1663494263118-0&quot;
+   2) 1) &quot;bb&quot;
+      2) &quot;bb&quot;
+3) 1) &quot;1663494266979-0&quot;
+   2) 1) &quot;cc&quot;
+      2) &quot;cc&quot;
+4) 1) &quot;1663494602918-0&quot;
+   2) 1) &quot;dd&quot;
+      2) &quot;dd&quot;
+5) 1) &quot;1663499788198-0&quot;
+   2) 1) &quot;e&quot;
+      2) &quot;ee&quot;
+6) 1) &quot;1663502008488-0&quot;
+   2) 1) &quot;ff&quot;
+      2) &quot;ff&quot;
+7) 1) &quot;1663502019162-0&quot;
+   2) 1) &quot;gg&quot;
+      2) &quot;gg&quot;
+
+##消费组g7中消费情况 消费了两条消息（没有ack）
+127.0.0.1:6379[1]&gt; xinfo consumers stream-key g7
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 2
+   5) &quot;idle&quot;
+   6) (integer) 441931
+   
+ ##对消费者组g7中的消息id为‘1663502019162-0’进行ack
+127.0.0.1:6379[1]&gt; xack stream-key g7 1663502019162-0
+(integer) 1
+
+##重新查看ack中内容发现只有一条了
+127.0.0.1:6379[1]&gt; xinfo consumers stream-key g7
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 1
+   5) &quot;idle&quot;
+   6) (integer) 488658
+
+
+</code></pre>
+<h3 id="388-其他相关命令">3.8.8 其他相关命令</h3>
+<h4 id="3881-查看消费组中消费者的pending消息">3.8.8.1 查看消费组中消费者的pending消息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xpending stream-key g1 - + 10 c2
+1) 1) &quot;1636362623191-0&quot;
+   2) &quot;c2&quot;
+   3) (integer) 1247680
+   4) (integer) 8
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3882-查看消费组中的消费者信息">3.8.8.2 查看消费组中的消费者信息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xinfo consumers stream-key g1
+1) 1) &quot;name&quot;
+   2) &quot;c1&quot;
+   3) &quot;pending&quot;
+   4) (integer) 1
+   5) &quot;idle&quot;
+   6) (integer) 1474864
+2) 1) &quot;name&quot;
+   2) &quot;c2&quot;
+   3) &quot;pending&quot;
+   4) (integer) 1
+   5) &quot;idle&quot;
+   6) (integer) 1290069
+127.0.0.1:6379&gt;
+</code></pre>
+<h4 id="3883-查看消费组信息">3.8.8.3 查看消费组信息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xinfo groups stream-key
+1) 1) &quot;name&quot;
+   2) &quot;g1&quot;
+   3) &quot;consumers&quot;
+   4) (integer) 2
+   5) &quot;pending&quot;
+   6) (integer) 2
+   7) &quot;last-delivered-id&quot;
+   8) &quot;1636362623191-0&quot;
+2) 1) &quot;name&quot;
+   2) &quot;g2&quot;
+   3) &quot;consumers&quot;
+......
+</code></pre>
+<h4 id="3884-查看stream信息">3.8.8.4 查看Stream信息</h4>
+<pre><code class="language-shell">127.0.0.1:6379&gt; xinfo stream stream-key
+ 1) &quot;length&quot;
+ 2) (integer) 2
+ 3) &quot;radix-tree-keys&quot;
+ 4) (integer) 1
+ 5) &quot;radix-tree-nodes&quot;
+ 6) (integer) 2
+ 7) &quot;last-generated-id&quot;
+ 8) &quot;1636362623191-0&quot;
+ 9) &quot;groups&quot;
+10) (integer) 4
+11) &quot;first-entry&quot;
+12) 1) &quot;1636362619125-0&quot;
+    2) 1) &quot;aa&quot;
+       2) &quot;aa&quot;
+13) &quot;last-entry&quot;
+14) 1) &quot;1636362623191-0&quot;
+    2) 1) &quot;bb&quot;
+       2) &quot;bb&quot;
+127.0.0.1:6379&gt;
+</code></pre>
+<h2 id="4-注意点">4、注意点</h2>
+<h2 id="41-stream-消息积压怎么处理">4.1 Stream 消息积压怎么处理</h2>
+<blockquote>
+<p>消息积累太多，Stream 的链表岂不是很长，内容会不会爆掉?xdel指令又不会删除消息，它只是给消息做了个标志位。</p>
+<p>Redis考虑到了这一点，所以它提供了一个定长 Stream 功能。在 xadd 的指令提供一个定长长度 maxlen，就可以将老的消息干掉，确保最多不超过指定长度</p>
+</blockquote>
+<pre><code class="language-shell">##原来长度
+127.0.0.1:6379[1]&gt; xrange stream-key - +
+1) 1) &quot;1663494258926-0&quot;
+   2) 1) &quot;aa&quot;
+      2) &quot;aa&quot;
+2) 1) &quot;1663494263118-0&quot;
+   2) 1) &quot;bb&quot;
+      2) &quot;bb&quot;
+3) 1) &quot;1663494266979-0&quot;
+   2) 1) &quot;cc&quot;
+      2) &quot;cc&quot;
+4) 1) &quot;1663494602918-0&quot;
+   2) 1) &quot;dd&quot;
+      2) &quot;dd&quot;
+5) 1) &quot;1663499788198-0&quot;
+   2) 1) &quot;e&quot;
+      2) &quot;ee&quot;
+6) 1) &quot;1663502008488-0&quot;
+   2) 1) &quot;ff&quot;
+      2) &quot;ff&quot;
+7) 1) &quot;1663502019162-0&quot;
+   2) 1) &quot;gg&quot;
+      2) &quot;gg&quot;
+
+##加上maxlen限制长度
+127.0.0.1:6379[1]&gt; xadd stream-key maxlen  6 *  hh hh
+&quot;1663502741283-0&quot;
+127.0.0.1:6379[1]&gt; xrange stream-key - +
+1) 1) &quot;1663494266979-0&quot;
+   2) 1) &quot;cc&quot;
+      2) &quot;cc&quot;
+2) 1) &quot;1663494602918-0&quot;
+   2) 1) &quot;dd&quot;
+      2) &quot;dd&quot;
+3) 1) &quot;1663499788198-0&quot;
+   2) 1) &quot;e&quot;
+      2) &quot;ee&quot;
+4) 1) &quot;1663502008488-0&quot;
+   2) 1) &quot;ff&quot;
+      2) &quot;ff&quot;
+5) 1) &quot;1663502019162-0&quot;
+   2) 1) &quot;gg&quot;
+      2) &quot;gg&quot;
+6) 1) &quot;1663502741283-0&quot;
+   2) 1) &quot;hh&quot;
+      2) &quot;hh&quot;
+</code></pre>
+<h2 id="42消息如果忘记-ack-会怎样">4.2消息如果忘记 ACK 会怎样？</h2>
+<blockquote>
+<p>Stream 在每个消费者结构中保存了正在处理中的消息 ID 列表 PEL，如果消费者收到了消息处理完了但是没有回复 ack，就会导致 PEL 列表不断增长，如果有很多消费组的话，那么这个 PEL 占用的内存就会放大。</p>
+</blockquote>
+<figure data-type="image" tabindex="10"><img src="D:/myNotes/GiteeNotes/LearningNotes/%E6%A0%A1%E6%8B%9B%E9%9D%A2%E8%AF%95/md%E7%AC%94%E8%AE%B0/RedisStream.assets/watermark,size_16,text_QDUxQ1RP5Y2a5a6i,color_FFFFFF,t_30,g_se,x_10,y_10,shadow_20,type_ZmFuZ3poZW5naGVpdGk=.png" alt="Redis进阶-Stream多播的可持久化的消息队列_客户端_11" loading="lazy"></figure>
+<h2 id="43pel-如何避免消息丢失">4.3PEL 如何避免消息丢失?</h2>
+<blockquote>
+<p>在客户端消费者读取 Stream 消息时，Redis 服务器将消息回复给客户端的过程中，客户端突然断开了连接，消息就丢失了。</p>
+<p>但是 PEL 里已经保存了发出去的消息 ID。待客户端重新连上之后，可以再次收到 PEL 中的消息 ID 列表。不过<strong>此时 xreadgroup 的起始消息ID 不能为参数&gt;，而必须是任意有效的消息 ID，一般将参数设为 0-0，表示读取所有的PEL 消息以及自 last_delivered_id 之后的新消息</strong></p>
+</blockquote>
+<h2 id="44-stream-的高可用">4.4 Stream 的高可用</h2>
+<blockquote>
+<p>Stream 的高可用是建立主从复制基础上的，它和其它数据结构的复制机制没有区别，也就是说在 Sentinel 和 Cluster 集群环境下 Stream 是可以支持高可用的。不过鉴于 Redis 的指令复制是异步的，在 failover 发生时，Redis 可能会丢失极小部分数据，这点 Redis 的其它数据结构也是一样的。</p>
+</blockquote>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[LinkedList]]></title>
+        <id>https://CatearMax.github.io/post/linkedlist/</id>
+        <link href="https://CatearMax.github.io/post/linkedlist/">
+        </link>
+        <updated>2022-08-12T07:37:33.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="32-linkedlist">3.2 LinkedList</h2>
+<h3 id="321简单介绍">3.2.1简单介绍</h3>
+<blockquote>
+<ol>
+<li><code>LinkedList</code>是一个继承于<code>AbstractSequentialList</code>的双向链表。它也可以被当做<strong>堆栈、队列或双端队列</strong>进行使用。</li>
+<li><code>LinkedList</code>实现<code>List</code>接口，能让它进行<strong>队列</strong>操作。</li>
+<li><code>LinkedList</code>实现<code>Deque</code>接口，即能将<code>LinkedList</code>当做<strong>双端队列</strong>使用。</li>
+<li><code>LinkedList</code>实现<code>Cloneable</code>，即覆盖了函数<code>clone()</code>，<strong>能被克隆</strong>。</li>
+<li><code>LinkedList</code>实现了<code>java.io.Serializable</code>接口，这意味着<code>LinkedList</code><strong>支持序列化</strong>，能通过序列化去传输。</li>
+<li><code>LinkedList</code>中的操作<strong>不是线程安全</strong>的。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="1"><img src="C:/Users/Xiawc/Desktop/%E6%B5%B7%E9%B9%9A%E8%B5%84%E6%96%99/Java%E7%BC%96%E7%A8%8B%E6%80%9D%E6%83%B3%E7%AC%94%E8%AE%B0.assets/image-20220810141805388.png" alt="image-20220810141805388" loading="lazy"></figure>
+<h3 id="322属性">3.2.2属性</h3>
+<pre><code class="language-java">//链表节点的个数
+transient int size = 0;
+//链表首节点
+transient Node&lt;E&gt; first;
+//链表尾节点
+transient Node&lt;E&gt; last;
+</code></pre>
+<pre><code class="language-java">//内部静态类
+private static class Node&lt;E&gt; {
+    //当前节点元素值
+    E item;
+    //下一个节点
+    Node&lt;E&gt; next;
+    //上一个节点
+    Node&lt;E&gt; prev;
+
+    Node(Node&lt;E&gt; prev, E element, Node&lt;E&gt; next) {
+        this.item = element;
+        this.next = next;
+        this.prev = prev;
+    }
+}
+</code></pre>
+<h3 id="323构造函数">3.2.3构造函数</h3>
+<h4 id="3231无参构造">3.2.3.1无参构造</h4>
+<pre><code class="language-java">//如果不传入参数，则使用默认构造方法创建LinkedList对象 此时创建的是一个空的链表。
+public LinkedList() {
+}
+</code></pre>
+<h4 id="3232有参构造">3.2.3.2有参构造</h4>
+<pre><code class="language-java">//首先会调用无参数的构造方法，然后调用addAll方法将集合内元素全部加入到链表中。
+public LinkedList(Collection&lt;? extends E&gt; c) {
+    this();
+    addAll(c);
+}
+</code></pre>
+<blockquote>
+<p>从上述的俩个构造方法可以看出LinkedList是一个<strong>无界链表</strong>，<strong>不存在容量不足</strong>的问题。</p>
+</blockquote>
+<h3 id="324-添加元素">3.2.4 添加元素</h3>
+<blockquote>
+<p>LinkedList主要提供<code>addFirst</code>、<code>addLast</code>、<code>add</code>、<code>addAll</code>等方法来实现元素的添加。</p>
+</blockquote>
+<h4 id="3241-addfirst">3.2.4.1 addFirst</h4>
+<pre><code class="language-java">//在链表首部添加元素
+public void addFirst(E e) {
+    linkFirst(e);
+}
+</code></pre>
+<pre><code class="language-java">private void linkFirst(E e) {
+    //将内部保存的首节点点赋值给f
+    final Node&lt;E&gt; f = first;
+    //创建新节点，新节点的next节点是当前的首节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(null, e, f);
+    //把新节点作为新的首节点
+    first = newNode;
+    //判断是否是第一个添加的元素
+    //如果是将新节点赋值给last
+    //如果不是把原首节点的prev设置为新节点
+    if (f == null)
+        last = newNode;
+    else
+        f.prev = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3242-addlast">3.2.4.2 addLast</h4>
+<pre><code class="language-java">//在链表尾部添加元素
+public void addLast(E e) {
+    linkLast(e);
+}
+</code></pre>
+<pre><code class="language-java">void linkLast(E e) {
+    //将内部保存的尾节点赋值给l
+    final Node&lt;E&gt; l = last;
+    //创建新节点，新节点的prev节点是当前的尾节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(l, e, null);
+    //把新节点作为新的尾节点
+    last = newNode;
+    //判断是否是第一个添加的元素
+    //如果是将新节点赋值给first
+    //如果不是把原首节点的next设置为新节点
+    if (l == null)
+        first = newNode;
+    else
+        l.next = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3243-add">3.2.4.3 add</h4>
+<pre><code class="language-java">//该方法和addLast方差不多，因为是无界的，所以添加元素总是会成功
+public boolean add(E e) {
+    linkLast(e);
+    return true;
+}
+</code></pre>
+<pre><code class="language-java">//该方法和上面add方法的区别是，该方法可以指定位置插入元素
+public void add(int index, E element) {
+    //判断是否越界
+    checkPositionIndex(index);
+    //如果index等于链表节点个数，就将元素添加到俩表尾部，否则调用linkBefore方法
+    if (index == size)
+        linkLast(element);
+    else
+        linkBefore(element, node(index));
+}
+</code></pre>
+<pre><code class="language-java">//获取指定位置的节点
+Node&lt;E&gt; node(int index) {
+    //如果index小于size的一半，就从首节点开始遍历，一直获取x的下一个节点
+    //如果index大于或等于size的一半，就从尾节点开始遍历，一直获取x的上一个节点
+    if (index &lt; (size &gt;&gt; 1)) {
+        Node&lt;E&gt; x = first;
+        for (int i = 0; i &lt; index; i++)
+            x = x.next;
+        return x;
+    } else {
+        Node&lt;E&gt; x = last;
+        for (int i = size - 1; i &gt; index; i--)
+            x = x.prev;
+        return x;
+    }
+}
+</code></pre>
+<pre><code class="language-java">//将元素插入到指定节点前
+void linkBefore(E e, Node&lt;E&gt; succ) {
+    assert succ != null;
+    //拿到succ的上一节点
+    final Node&lt;E&gt; pred = succ.prev;
+    //创建新节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(pred, e, succ);
+    //将新节点作为succ的上一节点
+    succ.prev = newNode;
+    //判断succ是否是首节点
+    //如果是将新节点作为新的首节点
+    //如果不是将新节点作为pred的下一节点
+    if (pred == null)
+        first = newNode;
+    else
+        pred.next = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3244-addall">3.2.4.4 addAll</h4>
+<pre><code class="language-java">//将集合内的元素依次插入index位置后
+public boolean addAll(int index, Collection&lt;? extends E&gt; c) {
+    //判断是否越界
+    checkPositionIndex(index);
+    //将集合转换为数组
+    Object[] a = c.toArray();
+    int numNew = a.length;
+    //判断数组长度是否为0，为0直接返回false
+    if (numNew == 0)
+        return false;
+    //pred上一个节点，succ当前节点
+    Node&lt;E&gt; pred, succ;
+    //判断index位置是否等于链表元素个数
+    //如果等于succ赋值为null，pred赋值为当前链表尾节点last
+    //如果不等于succ赋值为index位置的节点，pred赋值为succ的上一个节点
+    if (index == size) {
+        succ = null;
+        pred = last;
+    } else {
+        succ = node(index);
+        pred = succ.prev;
+    }
+    //循环数组
+    for (Object o : a) {
+        E e = (E) o;
+        //创建新节点
+        Node&lt;E&gt; newNode = new Node&lt;&gt;(pred, e, null);
+        //如果上一个节点为null，把新节点作为新的首节点，否则pred的下一个节点为新节点
+        if (pred == null)
+            first = newNode;
+        else
+            pred.next = newNode;
+        //把新节点赋值给上一个节点
+        pred = newNode;
+    }
+    //如果index位置的节点为null，把pred作业尾节点
+    //如果不为null，pred的下一节点为index位置的节点，succ的上一节点为pred
+    if (succ == null) {
+        last = pred;
+    } else {
+        pred.next = succ;
+        succ.prev = pred;
+    }
+    //更新链表节点个数
+    size += numNew;
+    //将集合修改次数加1
+    modCount++;
+    //因为是无界的，所以添加元素总是会成功
+    return true;
+}
+</code></pre>
+<blockquote>
+<p>看到上面这么多种方式添加元素，其实本质只是三种方式，在链表的首部、尾部、中间位置添加元素。</p>
+<p>在链表首尾添加元素很高效，在中间添加元素比较低效，首先要找到插入位置的节点，在修改前后节点的指针。</p>
+</blockquote>
+<h3 id="325删除元素">3.2.5删除元素</h3>
+<h4 id="3251-remove">3.2.5.1 remove</h4>
+<pre><code class="language-java">//删除指定元素
+public boolean remove(Object o) {
+    //因为LinkedList允许存在null，所以需要进行null判断
+    if (o == null) {
+        //从首节点开始遍历
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (x.item == null) {
+                //调用unlink方法删除指定节点
+                unlink(x);
+                return true;
+            }
+        }
+    } else {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (o.equals(x.item)) {
+                unlink(x);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+</code></pre>
+<pre><code class="language-java">//删除指定节点
+E unlink(Node&lt;E&gt; x) {
+    //获取x节点的元素，以及它上一个节点，和下一个节点
+    final E element = x.item;
+    final Node&lt;E&gt; next = x.next;
+    final Node&lt;E&gt; prev = x.prev;
+    //如果x的上一个节点为null，说明是首节点，将x的下一个节点设置为新的首节点
+    //否则将x的上一节点设置为next，将x的上一节点设为null
+    if (prev == null) {
+        first = next;
+    } else {
+        prev.next = next;
+        x.prev = null;
+    }
+    //如果x的下一节点为null，说明是尾节点，将x的上一节点设置新的尾节点
+    //否则将x的上一节点设置x的上一节点，将x的下一节点设为null
+    if (next == null) {
+        last = prev;
+    } else {
+        next.prev = prev;
+        x.next = null;
+    }
+    //将x节点的元素值设为null，等待垃圾收集器收集
+    x.item = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<pre><code class="language-java">//删除指定位置的节点，其实和上面的方法差不多
+//通过node方法获得指定位置的节点，再通过unlink方法删除
+public E remove(int index) {
+    checkElementIndex(index);
+    return unlink(node(index));
+}
+</code></pre>
+<h4 id="3252-removefirst">3.2.5.2 removeFirst</h4>
+<pre><code class="language-java">//删除首节点
+public E remove() {
+    return removeFirst();
+}
+</code></pre>
+<pre><code class="language-java">//删除首节点
+public E removeFirst() {
+    final Node&lt;E&gt; f = first;
+    //如果首节点为null，说明是空链表，抛出异常
+    if (f == null)
+        throw new NoSuchElementException();
+    return unlinkFirst(f);
+}
+</code></pre>
+<pre><code class="language-java">//删除首节点
+private E unlinkFirst(Node&lt;E&gt; f) {
+    //首节点的元素值
+    final E element = f.item;
+    //首节点的下一节点
+    final Node&lt;E&gt; next = f.next;
+    //将首节点的元素值和下一节点设为null，等待垃圾收集器收集
+    f.item = null;
+    f.next = null; // help GC
+    //将next设置为新的首节点
+    first = next;
+    //如果next为null，说明说明链表中只有一个节点，把last也设为null
+    //否则把next的上一节点设为null
+    if (next == null)
+        last = null;
+    else
+        next.prev = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<h4 id="3253-removelast">3.2.5.3 removeLast</h4>
+<pre><code class="language-java">//删除尾节点
+public E removeLast() {
+    final Node&lt;E&gt; l = last;
+    //如果首节点为null，说明是空链表，抛出异常
+    if (l == null)
+        throw new NoSuchElementException();
+    return unlinkLast(l);
+}
+</code></pre>
+<pre><code class="language-java">private E unlinkLast(Node&lt;E&gt; l) {
+    //尾节点的元素值
+    final E element = l.item;
+    //尾节点的上一节点
+    final Node&lt;E&gt; prev = l.prev;
+    //将尾节点的元素值和上一节点设为null，等待垃圾收集器收集
+    l.item = null;
+    l.prev = null; // help GC
+    //将prev设置新的尾节点
+    last = prev;
+    //如果prev为null，说明说明链表中只有一个节点，把first也设为null
+    //否则把prev的下一节点设为null
+    if (prev == null)
+        first = null;
+    else
+        prev.next = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<blockquote>
+<p>删除和添加一样，其实本质只有三种方式，即删除首部、尾部、中间节点。</p>
+<p>和添加一样，首尾删除很高效，删除中间元素比较低效要先找到节点位置，再修改前后指针。</p>
+</blockquote>
+<h3 id="326获取元素">3.2.6获取元素</h3>
+<h4 id="3261-get">3.2.6.1 get</h4>
+<pre><code class="language-java">//获取指定位置的元素值
+public E get(int index) {
+    //判断是否越界
+    checkElementIndex(index);
+    //直接调用node方法获取指定位置的节点，并反回其元素值
+    return node(index).item;
+}
+</code></pre>
+<h4 id="3262-getfirst">3.2.6.2 getFirst</h4>
+<pre><code class="language-java">//获取链表首节点的元素值
+public E getFirst() {
+    final Node&lt;E&gt; f = first;
+    //判断是否是空链表，如果是抛出异常，否则直接返回首节点的元素值
+    if (f == null)
+        throw new NoSuchElementException();
+    return f.item;
+}
+</code></pre>
+<h4 id="3263-getlast">3.2.6.3 getLast</h4>
+<pre><code class="language-java">//获取链表尾节点的元素值
+public E getLast() {
+    final Node&lt;E&gt; l = last;
+    //判断是否是空链表，如果是抛出异常，否则直接返回尾节点的元素值
+    if (l == null)
+        throw new NoSuchElementException();
+    return l.item;
+}
+</code></pre>
+<h4 id="327-更新指定节点的元素值">3.2.7 更新指定节点的元素值</h4>
+<pre><code class="language-java">public E set(int index, E element) {
+    //判断是否越界
+    checkElementIndex(index);
+    //指定位置的节点
+    Node&lt;E&gt; x = node(index);
+    E oldVal = x.item;
+    //设置新值
+    x.item = element;
+    //返回老值
+    return oldVal;
+}
+</code></pre>
+<h3 id="328-队列">3.2.8 队列</h3>
+<pre><code class="language-java">//获取队列的第一个元素，如果为null会返回null
+public E peek() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : f.item;
+}
+
+//获取队列的第一个元素，如果为null会抛出异常
+public E element() {
+    return getFirst();
+}
+
+//获取队列的第一个元素，如果为null会返回null
+public E poll() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+
+//获取队列的第一个元素，如果为null会抛出异常
+public E remove() {
+    return removeFirst();
+}
+
+//将元素添加到队列尾部
+public boolean offer(E e) {
+    return add(e);
+}
+</code></pre>
+<h3 id="329-双向队列">3.2.9 双向队列</h3>
+<pre><code class="language-java">//将元素添加到首
+public boolean offerFirst(E e) {
+    addFirst(e);
+    return true;
+}
+	
+//将元素添加到尾部
+public boolean offerLast(E e) {
+    addLast(e);
+    return true;
+}
+
+//获取首部的元素值
+public E peekFirst() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : f.item;
+}
+
+//获取尾部的元素值
+public E peekLast() {
+    final Node&lt;E&gt; l = last;
+    return (l == null) ? null : l.item;
+}
+
+//删除首部，如果为null会返回null
+public E pollFirst() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+
+//删除尾部，如果为null会返回null
+public E pollLast() {
+    final Node&lt;E&gt; l = last;
+    return (l == null) ? null : unlinkLast(l);
+}
+
+//将元素添加到首部
+public void push(E e) {
+    addFirst(e);
+}
+
+//删除首部，如果为null会抛出异常
+public E pop() {
+    return removeFirst();
+}
+
+//删除链表中元素值等于o的第一个节点，其实和remove方法是一样的，因为内部还是调用的remove方法
+public boolean removeFirstOccurrence(Object o) {
+    return remove(o);
+}
+
+//删除链表中元素值等于o的最后一个节点
+public boolean removeLastOccurrence(Object o) {
+    //因为LinkedList允许存在null，所以需要进行null判断
+    if (o == null) {
+        //和remove方法的区别它是从尾节点往前遍历
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            if (x.item == null) {
+                //调用unlink方法删除指定节点
+                unlink(x);
+                return true;
+            }
+        }
+    } else {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            if (o.equals(x.item)) {
+                unlink(x);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+</code></pre>
+<h3 id="3210-其他api">3.2.10 其他api</h3>
+<pre><code class="language-java">//判断元素是否存在于链表中
+public boolean contains(Object o) {
+    return indexOf(o) != -1;
+}
+	
+//从前往后查找返回节点元素值等于o的位置，不存在返回-1
+public int indexOf(Object o) {
+    int index = 0;
+    if (o == null) {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (x.item == null)
+                return index;
+            index++;
+        }
+    } else {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (o.equals(x.item))
+                return index;
+            index++;
+        }
+    }
+    return -1;
+}
+
+//该方法和上面indexOf方法相反，它是从后往前查找返回节点元素值等于o的位置，不存在返回-1
+public int lastIndexOf(Object o) {
+    int index = size;
+    if (o == null) {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            index--;
+            if (x.item == null)
+                return index;
+        }
+    } else {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            index--;
+            if (o.equals(x.item))
+                return index;
+        }
+    }
+    return -1;
+}
+
+//克隆函数，返回LinkedList的克隆对象
+public Object clone() {
+    LinkedList&lt;E&gt; clone = superClone();
+
+    // 将新建LinkedList置于最初状态
+    clone.first = clone.last = null;
+    clone.size = 0;
+    clone.modCount = 0;
+
+    // 将链表中所有节点的数据都添加到克隆对象中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        clone.add(x.item);
+
+    return clone;
+}
+
+//返回LinkedList节点单元素值的Object数组
+public Object[] toArray() {
+    Object[] result = new Object[size];
+    int i = 0;
+    //将链表中所有节点的元素值添加到object数组中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        result[i++] = x.item;
+    return result;
+}
+
+// 返回LinkedList的模板数组。所谓模板数组，即可以将T设为任意的数据类型
+public &lt;T&gt; T[] toArray(T[] a) {
+    //如果a的长度小于LinkedList节点个数，说明a不能容纳LinkedList的所有节点元素值
+    //则新建一个数组，数组大小为LinkedList节点个数，并赋值给a
+    if (a.length &lt; size)
+        a = (T[])java.lang.reflect.Array.newInstance(
+                                a.getClass().getComponentType(), size);
+    int i = 0;
+    Object[] result = a;
+    // 将链表中所有节点的元素值都添加到数组a中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        result[i++] = x.item;
+
+    if (a.length &gt; size)
+        a[size] = null;
+
+    return a;
+}
+
+//将LinkedList中的数据写入到输入流中，先写容量，再写数据
+private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+    // Write out any hidden serialization magic
+    s.defaultWriteObject();
+
+    // Write out size
+        s.writeInt(size);
+
+    // Write out all elements in the proper order.
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        s.writeObject(x.item);
+}
+
+//从输入流中读取数据，一样是先读容量，再读数据
+private void readObject(java.io.ObjectInputStream s)
+    throws java.io.IOException, ClassNotFoundException {
+    // Read in any hidden serialization magic
+    s.defaultReadObject();
+
+    // Read in size
+    int size = s.readInt();
+    //从输入流中将元素值逐个添加到链表中
+    // Read in all elements in the proper order.
+    for (int i = 0; i &lt; size; i++)
+        linkLast((E)s.readObject());
+}
+</code></pre>
+<h2 id=""></h2>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ArrayList]]></title>
+        <id>https://CatearMax.github.io/post/arraylist/</id>
+        <link href="https://CatearMax.github.io/post/arraylist/">
+        </link>
+        <updated>2022-08-12T07:34:07.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="33-arraylist">3.3 ArrayList</h2>
+<h3 id="331简单介绍">3.3.1简单介绍</h3>
+<blockquote>
+<ol>
+<li><code>ArrayList</code>是一个<strong>数组队列</strong>，相当于<strong>动态数组</strong>。</li>
+<li><code>ArrayList</code>继承了AbstractList，实现了List。它是一个数组队列，提供了相关的添加、删除、修改、遍历等功能。</li>
+<li><code>ArrayList</code>实现了RandmoAccess接口，即提供了随机访问的功能。</li>
+<li><code>ArrayList</code>实现了Cloneable接口，即覆盖了函数clone()，能被克隆。</li>
+<li><code>ArrayList</code>实现了java.io.Serializable接口，这意味着ArrayList支持序列化，能通过序列化去传输。</li>
+<li><code>ArrayList</code>不是线程安全的，多线程情况下可以选择<strong>CopyOnWriteArrayList</strong>或者使用<strong>Collections</strong>中的<strong>synchronizedList</strong>方法将其包装成一个线程安全的List。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="1"><img src="C:/Users/Xiawc/Desktop/%E6%B5%B7%E9%B9%9A%E8%B5%84%E6%96%99/Java%E7%BC%96%E7%A8%8B%E6%80%9D%E6%83%B3%E7%AC%94%E8%AE%B0.assets/image-20220810100830492.png" alt="image-20220810100830492" loading="lazy"></figure>
+<h3 id="332-api">3.3.2 API</h3>
+<pre><code class="language-java">// Collection中定义的API
+返回值				  方法名
+boolean             add(E object)
+boolean             addAll(Collection&lt;? extends E&gt; collection)
+void                clear()
+boolean             contains(Object object)
+boolean             containsAll(Collection&lt;?&gt; collection)
+boolean             equals(Object object)
+int                 hashCode()
+boolean             isEmpty()
+Iterator&lt;E&gt;         iterator()
+boolean             remove(Object object)
+boolean             removeAll(Collection&lt;?&gt; collection)
+boolean             retainAll(Collection&lt;?&gt; collection)
+int                 size()
+&lt;T&gt; T[]             toArray(T[] array)
+Object[]            toArray()
+// AbstractCollection中定义的API
+void                add(int location, E object)
+boolean             addAll(int location, Collection&lt;? extends E&gt; collection)
+E                   get(int location)
+int                 indexOf(Object object)
+int                 lastIndexOf(Object object)
+ListIterator&lt;E&gt;     listIterator(int location)
+ListIterator&lt;E&gt;     listIterator()
+E                   remove(int location)
+E                   set(int location, E object)
+List&lt;E&gt;             subList(int start, int end)
+// ArrayList新增的API
+Object               clone()
+void                 ensureCapacity(int minimumCapacity)
+void                 trimToSize()
+void                 removeRange(int fromIndex, int toIndex)
+</code></pre>
+<h3 id="333属性">3.3.3属性</h3>
+<pre><code class="language-java">//序列化id
+private static final long serialVersionUID = 8683452581122892189L;
+//容器默认初始化大小
+private static final int DEFAULT_CAPACITY = 10;
+//一个空对象
+private static final Object[] EMPTY_ELEMENTDATA = {};
+//一个空对象，如果使用默认构造函数创建ArrayList，则默认对象内容是该值
+private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+//ArrayList存放对象的容器，后面的添加、删除等操作都是基于该属性来进行操作
+transient Object[] elementData;
+//当前列表已使用的长度
+private int size;
+//数组最大长度（2147483639），这里为什么是Integer.MAX_VALUE - 8是因为有些虚拟机在数组中保留了一些头部信息，防止内存溢出
+private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+//这个是从AbstractList继承过来的，代表ArrayList集合修改的次数
+protected transient int modCount = 0;
+</code></pre>
+<blockquote>
+<p>关于Java中transient关键字的解释：</p>
+<p>我们都知道一个对象只要实现了Serilizable接口，这个对象就可以被序列化，java的这种序列化模式为开发者提供了很多便利，我们可以不必关系具体序列化的过程，只要这个类实现了Serilizable接口，这个类的所有属性和方法都会自动序列化。</p>
+<p>然而在实际开发过程中，我们常常会遇到这样的问题，这个类的有些属性需要序列化，而其他属性不需要被序列化，打个比方，如果一个用户有一些敏感信息（如密码，银行卡号等），为了安全起见，不希望在网络操作（主要涉及到序列化操作，本地序列化缓存也适用）中被传输，这些信息对应的变量就可以加上transient关键字。换句话说，这个字段的生命周期仅存于调用者的内存中而不会写到磁盘里持久化。</p>
+<p><strong>总之，java 的transient关键字为我们提供了便利，你只需要实现Serilizable接口，将不需要序列化的属性前添加关键字transient，序列化对象的时候，这个属性就不会序列化到指定的目的地中。</strong></p>
+</blockquote>
+<h3 id="334构造函数">3.3.4构造函数</h3>
+<h4 id="3341无参构造">3.3.4.1无参构造</h4>
+<pre><code class="language-java">//注意：此时我们创建的ArrayList对象中的elementData中的长度是0，size是0，当进行第一次add的时候，elementDate将会变成默认的长度：10。
+public ArrayList() {
+        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
+    }
+</code></pre>
+<h4 id="3342带int类型的构造函数">3.3.4.2带int类型的构造函数</h4>
+<pre><code class="language-java">//如果传入参数，则代表指定ArrayList的初始数组长度；传入参数如果是大于0，则使用用户的参数初始化；如果参数等于0，则用内部的空对象EMPTY_ELEMENTDATA的地址直接赋值给elementData；否则抛出异常，如下：
+public ArrayList(int initialCapacity) {
+        if (initialCapacity &gt; 0) {
+            this.elementData = new Object[initialCapacity];
+        } else if (initialCapacity == 0) {
+            this.elementData = EMPTY_ELEMENTDATA;
+        } else {
+            throw new IllegalArgumentException(&quot;Illegal Capacity: &quot;+
+                                               initialCapacity);
+        }
+    }
+</code></pre>
+<h4 id="3343-带collection对象的构造函数">3.3.4.3 带Collection对象的构造函数</h4>
+<pre><code class="language-java">//1.将Collection对象转换成数组，然后将数组的地址赋值给elementData。
+//2.更新size的值，如果size的值等于0直接将内部空对象EMPTY_ELEMENTDATA的地址赋值给elementData。
+//3.如果size的值大于0，则执行Arrays.copy方法，把Collection对象的内容copy(可以理解为深拷贝)到elementData中，并且这些元素是按照该collection的迭代器返回它们的顺序排列的。
+public ArrayList(Collection&lt;? extends E&gt; c) {
+        elementData = c.toArray();
+        if ((size = elementData.length) != 0) {
+            // c.toArray might (incorrectly) not return Object[] (see 6260652)
+            if (elementData.getClass() != Object[].class)
+                elementData = Arrays.copyOf(elementData, size, Object[].class);
+        } else {
+            // replace with empty array.
+            this.elementData = EMPTY_ELEMENTDATA;
+        }
+    }
+</code></pre>
+<pre><code class="language-java"> 	//System.arraycopy方法：它就是从指定的源数组将元素中复制到目标数组，复制从指定的位置开始，到设定的复制长度结束，然后从目标数组的指定起始位置依次插入。
+
+	// src 源数组
+	// srcPos 源数组要复制的起始位置	
+	// dest 要赋值到的目标数组
+	// destPos 目标数组放置的起始位置
+	// length 复制的长度
+	// 使用了native关键字，说明调用的是其他语言写的底层函数
+    public static native void arraycopy(Object src,  int  srcPos,
+                                        Object dest, int destPos,
+                                        int length);
+</code></pre>
+<pre><code class="language-java">  //Arrays.copyOf方法：它新建了一个数组并且将原数组的内容拷贝到长度为newLength的新数组中，并且返回该新数组。
+
+	// original 要复制的数组
+	// newLength 要返回副本的长度
+	// newwType 要返回的副本类型
+	// 内部调用了System.arraycopy方法
+    public static &lt;T,U&gt; T[] copyOf(U[] original, int newLength, Class&lt;? extends T[]&gt; newType) {
+        @SuppressWarnings(&quot;unchecked&quot;)
+        T[] copy = ((Object)newType == (Object)Object[].class)
+            ? (T[]) new Object[newLength]
+            : (T[]) Array.newInstance(newType.getComponentType(), newLength);
+        System.arraycopy(original, 0, copy, 0,
+                         Math.min(original.length, newLength));
+        return copy;
+    }
+</code></pre>
+<blockquote>
+<p>System.arraycopy()与Arrays.copyof()区别</p>
+<ol>
+<li>System.arraycopy需要目标数组，将原数组拷贝到你自己定义的数值里，而且可以选择拷贝的起点和长度以及放入新数组中的位置。</li>
+<li>Arrays.copyof是系统自动在内部新建一个数组，调用System.arraycopy将原数组的内容拷贝到长度为newLength的新数组中，并返回新建的数组。</li>
+</ol>
+</blockquote>
+<h4 id="3344-添加元素">3.3.4.4 添加元素</h4>
+<h5 id="adde-e方法">add(E e)方法</h5>
+<pre><code class="language-java">//官方解释：将指定的元素追加到列表（elementData）的末尾
+    public boolean add(E e) {
+        ensureCapacityInternal(size + 1);  // Increments modCount!!
+        elementData[size++] = e;
+        return true;
+    }
+</code></pre>
+<pre><code class="language-java">    //参数值实际是size+1
+	private void ensureCapacityInternal(int minCapacity) {
+        ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+    }
+</code></pre>
+<pre><code class="language-java"> //这个方式是判断当前数组是否是个空数组，如果是就返回默认长度10，否则就返回size+1;也就是说如果你是用无参构造函数初始化ArrayList，那么在第一次调用add方法时，默认长度会变成10
+  private static int calculateCapacity(Object[] elementData, int minCapacity) {
+        if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+            return Math.max(DEFAULT_CAPACITY, minCapacity);
+        }
+        return minCapacity;
+    }
+</code></pre>
+<pre><code class="language-java">    //这个方法首先将集合修改次数加1，然后判断数组的长度是否可以存入下一个元素，如果长度不够会调用grow方法进行扩容
+	private void ensureExplicitCapacity(int minCapacity) {
+        modCount++;
+
+        // overflow-conscious code
+        if (minCapacity - elementData.length &gt; 0)
+            grow(minCapacity);
+    }
+</code></pre>
+<pre><code class="language-java">    //这个方法首先定义数组新的长度为原来数组长度的1.5倍，如果新长度减去所需数组的最小长度小于0，那么新长度就等于所需数组最小长度；再下面的判断是如果新长度大于MAX_ARRAY_SIZE(ArrayList内部定义MAX_ARRAY_SIZE的值是：2147483639)就调用hugeCapacity方法，最后调用Arrays.copyOf将扩容后的新数组地址赋值给elementData
+    private void grow(int minCapacity) {
+        // overflow-conscious code
+        int oldCapacity = elementData.length;
+        int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);
+        if (newCapacity - minCapacity &lt; 0)
+            newCapacity = minCapacity;
+        if (newCapacity - MAX_ARRAY_SIZE &gt; 0)
+            newCapacity = hugeCapacity(minCapacity);
+        // minCapacity is usually close to size, so this is a win:
+        elementData = Arrays.copyOf(elementData, newCapacity);
+    }
+</code></pre>
+<pre><code class="language-java">    //如果扩容长度超过MAX_ARRAY_SIZE，则设置长度为Integer.MAX_VALUE，但不是能百分百成功的，这取决于虚拟机。（如果我们可以在某些虚拟机上可以避免OutOfMemory，我们将另外分配Integer.MAX_VALUE，如果你很幸运（取决于虚拟机），我们将成功）
+    private static int hugeCapacity(int minCapacity) {
+        if (minCapacity &lt; 0) // overflow
+            throw new OutOfMemoryError();
+        return (minCapacity &gt; MAX_ARRAY_SIZE) ?
+            Integer.MAX_VALUE :
+            MAX_ARRAY_SIZE;
+    }
+</code></pre>
+<blockquote>
+<p>add总结：</p>
+<ol>
+<li>确保数组已使用长度（size）加1后可以存入下一个元素。</li>
+<li>修改次数modCount标识自增1，如果当前数组已使用长度+1后大于当前数组长度，则调用grow方法，扩容数组，grow方法会将当前数组的长度变为原来容量的1.5倍。</li>
+<li>确保新加的元素有地方存储后，则将新元素添加到位于size++的位置上。</li>
+<li>返回添加成功的布尔值。</li>
+</ol>
+</blockquote>
+<h5 id="addint-index-e-element">add(int index, E element)</h5>
+<pre><code class="language-java">   //这个方法和上面的add类型，该方法可以按照元素的位置，指定新元素位置插入。
+
+	public void add(int index, E element) {
+        //判断索引位置是否正确
+        rangeCheckForAdd(index);
+		//扩容检测
+        ensureCapacityInternal(size + 1);  // Increments modCount!!
+        //对源数组进行复制处理（位移），从index + 1到size - index
+        //即向后移动位于当前位置和后面的元素
+        System.arraycopy(elementData, index, elementData, index + 1,
+                         size - index);
+        //在指定的位置赋值
+        elementData[index] = element;
+        size++;
+    }   
+</code></pre>
+<pre><code class="language-java">//该方法首先调用rangeCheckForAdd方法判断指定的位置小于当前数组的长度并且大于0，否则抛出异常。  
+
+	private void rangeCheckForAdd(int index) {
+        if (index &gt; size || index &lt; 0)
+            throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+    }
+</code></pre>
+<blockquote>
+<p>第二步调用的<strong>ensureCapacityInternal</strong>方法和上面的add方法逻辑一样。</p>
+<p>第三步调用<strong>System.arraycopy</strong>方法把<strong>指定下标以及后面的元素全部往后移一位</strong>。</p>
+<p>最后将新的元素放到指定位置（index）上，并将size+1。</p>
+</blockquote>
+<h5 id="addallcollection-extends-e-c">addAll(Collection&lt;? extends E&gt; c)</h5>
+<pre><code class="language-java">    //按照指定的Collection迭代器所返回的顺序，依次插入到列表尾部。
+    public boolean addAll(Collection&lt;? extends E&gt; c) {
+        // 将c转换为数组
+        Object[] a = c.toArray();
+        int numNew = a.length;
+        //扩容处理，大小为size + numNew
+        ensureCapacityInternal(size + numNew);  // Increments modCount
+        System.arraycopy(a, 0, elementData, size, numNew);
+        size += numNew;
+        return numNew != 0;
+    }
+</code></pre>
+<h5 id="setint-index-e-element">set(int index, E element)</h5>
+<pre><code class="language-java">    public E set(int index, E element) {
+        //判断插入位置是否正确，如果大于列表长度会抛出异常
+        rangeCheck(index);
+		//获取插入位置的当前元素
+        E oldValue = elementData(index);
+        //将新的元素替换当前插入位置的元素
+        elementData[index] = element;
+        //返回插入位置老的值
+        return oldValue;
+    }
+</code></pre>
+<h4 id="3345-删除元素">3.3.4.5 删除元素</h4>
+<h5 id="removeint-index">remove(int index)</h5>
+<pre><code class="language-java">   //移除指定位置上的元素
+	public E remove(int index) {
+        //判断删除位置是否正确，如果大于列表长度会抛出异常
+        rangeCheck(index);
+		//将集合修改次数加1
+        modCount++;
+        //获取当前删除位置上的元素
+        E oldValue = elementData(index);
+		//判断是否删除的是最后一个元素，如果不是将删除位置后的元素向左移numMoved个位置
+        int numMoved = size - index - 1;
+        if (numMoved &gt; 0)
+            System.arraycopy(elementData, index+1, elementData, index,
+                             numMoved);
+        //将列表最后的元素置为null，等待垃圾收集器收集
+        elementData[--size] = null; // clear to let GC do its work
+		//返回删除位置老的值
+        return oldValue;
+    }
+</code></pre>
+<h5 id="removeobject-o">remove(Object o)</h5>
+<pre><code class="language-java">    //移除指定元素
+	public boolean remove(Object o) {
+        //因为ArrayList允许存在null，所以需要进行null判断
+        if (o == null) {
+            for (int index = 0; index &lt; size; index++)
+                if (elementData[index] == null) {
+                    //移除这个位置的元素
+                    fastRemove(index);
+                    return true;
+                }
+        } else {
+            for (int index = 0; index &lt; size; index++)
+                if (o.equals(elementData[index])) {
+                    fastRemove(index);
+                    return true;
+                }
+        }
+        return false;
+    }
+</code></pre>
+<pre><code class="language-java">    private void fastRemove(int index) {
+		//将集合修改次数加1      
+        modCount++;
+        //判断是否删除的是最后一个元素，如果不是将删除位置后的元素向左移numMoved个位置
+        int numMoved = size - index - 1;
+        if (numMoved &gt; 0)
+            System.arraycopy(elementData, index+1, elementData, index,
+                             numMoved);
+        //将列表最后的元素置为null，等待垃圾收集器收集
+        elementData[--size] = null; // clear to let GC do its work
+    }
+</code></pre>
+<h5 id="removeallcollection-c">removeAll(Collection&lt;?&gt; c)</h5>
+<pre><code class="language-java">    public boolean removeAll(Collection&lt;?&gt; c) {
+        //进行判断，如果c为null抛出异常
+        Objects.requireNonNull(c);
+        return batchRemove(c, false);
+    }
+</code></pre>
+<pre><code class="language-java">    private boolean batchRemove(Collection&lt;?&gt; c, boolean complement) {
+        final Object[] elementData = this.elementData;
+        int r = 0, w = 0;
+        boolean modified = false;
+        try {
+            //遍历数组，并检查这个集合是否包含对应的值，移动要保留的值到数组前面，w最后值为要保留的元素的数量
+            //若保留，就将相同的元素移动到前段；不删除，就将不同元素移动到前段
+            for (; r &lt; size; r++)
+                if (c.contains(elementData[r]) == complement)
+                    elementData[w++] = elementData[r];
+        } finally {
+            // 确保异常抛出前的部分可以完成期望的操作，而被遍历的部分会被接到后面
+            //r不等于size表示可能出错了
+            if (r != size) {
+                System.arraycopy(elementData, r,
+                                 elementData, w,
+                                 size - r);
+                w += size - r;
+            }
+            //如果w等于size，表示全部元素都保留了，所以也就没有删除操作发生，所以会返回false；反之，返回true，并更改数组
+            //而w不等于size的时候，即使try块抛出异常，也能正确处理异常抛出前的操作，因为w始终为要保留的前段部分的长度，数组也不会因此乱序
+            if (w != size) {
+                // clear to let GC do its work
+                for (int i = w; i &lt; size; i++)
+                    elementData[i] = null;
+                modCount += size - w;
+                size = w;
+                modified = true;
+            }
+        }
+        return modified;
+    }
+</code></pre>
+<h4 id="3346-查找元素">3.3.4.6 查找元素</h4>
+<pre><code class="language-java">    //ArrayList提供了get(int index)用读取ArrayList中的元素。由于ArrayList是动态数组，所以我们完全可以根据下标来获取ArrayList中的元素，而且速度还比较快
+	public E get(int index) {
+        //判断删除位置是否正确，如果大于列表长度会抛出异常
+        rangeCheck(index);
+		//直接返回列表中下标等于index的元素
+        return elementData(index);
+    }
+</code></pre>
+<h4 id="3345-判断元素是否在集合中">3.3.4.5 判断元素是否在集合中</h4>
+<pre><code class="language-java">//contains方法会遍历ArrayList。
+public boolean contains(Object o) {
+    	//调用indexOf方法判断需要查找的元素在列表中的下标是否大于等于0，小于0则不存在
+        return indexOf(o) &gt;= 0;
+    }
+</code></pre>
+<pre><code class="language-java">    public int indexOf(Object o) {
+        //因为ArrayList允许存在null，所以需要进行null判断
+        if (o == null) {
+           	//遍历列表，如果列表存在null值的元素，直接返回其下标位置
+            for (int i = 0; i &lt; size; i++)
+                if (elementData[i]==null)
+                    return i;
+        } else {
+            //遍历列表，使用equals判断是否有相等的元素，有的话直接返回其下标位置
+            for (int i = 0; i &lt; size; i++)
+                if (o.equals(elementData[i]))
+                    return i;
+        }
+        //列表中不能存在传进来的元素，返回-1
+        return -1;
+    }
+</code></pre>
+<h4 id="3346-最小化arraylist的实际存储量">3.3.4.6 最小化ArrayList的实际存储量</h4>
+<pre><code class="language-java">   //ArrayList提供了trimToSize()方法用于将底层数组的容量调整为当前列表保存的实际元素的大小
+	public void trimToSize() {
+        //将集合修改次数加1
+        modCount++;
+        //如果当前ArrayList的实际长度小于列表的长度，将列表超过size后的空余的空间（包括null值）去除，调用Arrays.cppyof方法拷贝elementData，长度为size
+        if (size &lt; elementData.length) {
+            elementData = (size == 0)
+              ? EMPTY_ELEMENTDATA
+              : Arrays.copyOf(elementData, size);
+        }
+    }
+</code></pre>
+<h4 id="3347截取arraylist的内容">3.3.4.7截取ArrayList的内容</h4>
+<pre><code class="language-java">    //可以从源码中看到其实是创建了一个SubList的内部对象，可以理解为是返回当前ArrayList的部分视图，其实指向的存放数据的还是一个地方。如果修改了subList返回的内容的话，原来的内容也会被修改。
+	public List&lt;E&gt; subList(int fromIndex, int toIndex) {
+        //检查需要截取的下标位置是否正确
+        subListRangeCheck(fromIndex, toIndex, size);
+        return new SubList(this, 0, fromIndex, toIndex);
+    }
+</code></pre>
+<h4 id="3348-其他方法">3.3.4.8 其他方法</h4>
+<pre><code class="language-java">    //判断ArrayList是否为空
+    public boolean isEmpty() {
+        return size == 0;
+    }
+
+	//反向查找元素位置，与上述的indexOf相反
+    public int lastIndexOf(Object o) {
+        if (o == null) {
+            for (int i = size-1; i &gt;= 0; i--)
+                if (elementData[i]==null)
+                    return i;
+        } else {
+            for (int i = size-1; i &gt;= 0; i--)
+                if (o.equals(elementData[i]))
+                    return i;
+        }
+        return -1;
+    }
+
+	//将元素全部拷贝到v中
+    public Object clone() {
+        try {
+            ArrayList&lt;?&gt; v = (ArrayList&lt;?&gt;) super.clone();
+            v.elementData = Arrays.copyOf(elementData, size);
+            v.modCount = 0;
+            return v;
+        } catch (CloneNotSupportedException e) {
+            // this shouldn't happen, since we are Cloneable
+            throw new InternalError(e);
+        }
+    }
+
+	//返回ArrayList拷贝后的Object数组
+ 	public Object[] toArray() {
+        return Arrays.copyOf(elementData, size);
+    }
+
+	//返回ArrayList的模板数组。所谓模板数组，即可将T设置为任意数据类型
+    public &lt;T&gt; T[] toArray(T[] a) {
+        //若a的长度小于ArrayList中的元素个数，返回拷贝了ArrayList中全部元素的新数组
+        if (a.length &lt; size)
+            // Make a new array of a's runtime type, but my contents:
+            return (T[]) Arrays.copyOf(elementData, size, a.getClass());
+        //若a的长度大于等于ArrayList中的元素个数，则将ArrayList中的元素全部拷贝到a中
+        System.arraycopy(elementData, 0, a, 0, size);
+        if (a.length &gt; size)
+            a[size] = null;
+        return a;
+    }
+
+	//将ArrayList中的元素写入到输入流中，先写容量，在写元素
+    private void writeObject(java.io.ObjectOutputStream s)
+        throws java.io.IOException{
+        // Write out element count, and any hidden stuff
+        int expectedModCount = modCount;
+        s.defaultWriteObject();
+
+        // Write out size as capacity for behavioural compatibility with clone()
+        s.writeInt(size);
+
+        // Write out all elements in the proper order.
+        for (int i=0; i&lt;size; i++) {
+            s.writeObject(elementData[i]);
+        }
+
+        if (modCount != expectedModCount) {
+            throw new ConcurrentModificationException();
+        }
+    }
+
+	//从输入流中读取数据到elementData中，一样是先读容量，再读数据
+    private void readObject(java.io.ObjectInputStream s)
+        throws java.io.IOException, ClassNotFoundException {
+        elementData = EMPTY_ELEMENTDATA;
+
+        // Read in size, and any hidden stuff
+        s.defaultReadObject();
+
+        // Read in capacity
+        s.readInt(); // ignored
+
+        if (size &gt; 0) {
+            // be like clone(), allocate array based upon size not capacity
+            int capacity = calculateCapacity(elementData, size);
+            SharedSecrets.getJavaOISAccess().checkArray(s, Object[].class, capacity);
+            ensureCapacityInternal(size);
+
+            Object[] a = elementData;
+            // Read in all elements in the proper order.
+            for (int i=0; i&lt;size; i++) {
+                a[i] = s.readObject();
+            }
+        }
+    }
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Java设计模式]]></title>
+        <id>https://CatearMax.github.io/post/java-she-ji-mo-shi/</id>
+        <link href="https://CatearMax.github.io/post/java-she-ji-mo-shi/">
+        </link>
+        <updated>2022-08-09T09:47:12.000Z</updated>
+        <content type="html"><![CDATA[<p>1</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Java编程思想笔记]]></title>
+        <id>https://CatearMax.github.io/post/java-bian-cheng-si-xiang-bi-ji/</id>
+        <link href="https://CatearMax.github.io/post/java-bian-cheng-si-xiang-bi-ji/">
+        </link>
+        <updated>2022-08-08T08:59:09.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="1对象导论">1.对象导论</h1>
+<h2 id="11抽象过程">1.1抽象过程</h2>
+<blockquote>
+<p><strong>万物皆对象</strong>。</p>
+<p><strong>程序是对象的集合，通过发送消息来告诉彼此所需要做的。</strong>：将消息比作某特定对象的方法的调用请求。</p>
+<p><strong>每个对象都有自己的由其它对象构成的存储</strong>。：对象中包含另一个对象。</p>
+<p><strong>每个对象都有其类型。</strong></p>
+<p><strong>某一特性类型的所有对象都能接收同样的消息。</strong> ：多态</p>
+</blockquote>
+<h2 id="12每个对象都有一个接口">1.2每个对象都有一个接口</h2>
+<blockquote>
+<p>抽取出具有相同特性（<strong>属性</strong>）和行为（<strong>方法</strong>）的对象集合。</p>
+<p>比如向某个对象发送消息（<strong>发送请求</strong>），该对象能够知道该消息的目的并能够执行相应的代码。</p>
+</blockquote>
+<h2 id="13每个对象都提供服务">1.3每个对象都提供服务</h2>
+<blockquote>
+<p>设计程序时，<strong>将对象视为服务提供者</strong>。程序向用户提供服务，然后程序调用对象的提供的服务以此实现目的。</p>
+<p>同时将对象视为服务提供者能够提高对象的高内聚，<strong>对象完成提供服务的使命，但是绝不多做任何事</strong>。</p>
+</blockquote>
+<h2 id="14被隐藏的具体实现">1.4被隐藏的具体实现</h2>
+<blockquote>
+<p>程序中有服务提供者与服务调用者，服务提供者只需要向服务调用者暴露后者所需要的部分即可，减少不必要的bug。例如我们需要将数据库中的完整PO对象转换成业务层中的DTO对象，并且仅提供业务层中需要的属性。</p>
+<p>同时还可使用访问控制关键字加以保护，public、protected、private以及default进行控制。</p>
+</blockquote>
+<h2 id="15复用具体实现">1.5复用具体实现</h2>
+<blockquote>
+<p>某一对象作为另一对象的属性 <strong>组合</strong>（has-a）</p>
+<p>两个对象动态进行组合，例如：方法参数。<strong>聚合</strong>组合的依赖性比聚合要高</p>
+</blockquote>
+<h2 id="16继承">1.6继承</h2>
+<blockquote>
+<p><strong>is-a</strong>继承中子类重写父类中的方法</p>
+<p><strong>is-like-a</strong>子类新增了父类中不具有的方法</p>
+</blockquote>
+<h2 id="17伴随多态的可互换对象">1.7伴随多态的可互换对象</h2>
+<blockquote>
+<p>多态即是：<strong>父引用指向子实例</strong>，实际对应逻辑是子实例中的逻辑</p>
+</blockquote>
+<h1 id="2一切都是对象">2.一切都是对象</h1>
+<h2 id="21用引用操纵对象">2.1用引用操纵对象</h2>
+<blockquote>
+<p>持有对象的引用(地址)，即可对对象进行操作。Java是<strong>值传递</strong>，引用对象传递的是其地址。</p>
+</blockquote>
+<h2 id="22必须由你来创建对象">2.2必须由你来创建对象</h2>
+<h3 id="221存储到什么地方">2.2.1存储到什么地方</h3>
+<h4 id="2211寄存器">2.2.1.1寄存器</h4>
+<blockquote>
+<p>位于处理器内部，寄存器内存有限，用户无感且无法控制。</p>
+</blockquote>
+<h4 id="2212堆栈">2.2.1.2堆栈</h4>
+<blockquote>
+<p>位于RAM中，通过<strong>堆栈指针</strong>进行控制，若指针向下移动，则是分配新的内存，指针向上移动，则是释放内存。大多的Java<strong>对象引用</strong>存放于堆栈中</p>
+</blockquote>
+<h4 id="2213-堆">2.2.1.3 堆</h4>
+<blockquote>
+<p>通用的内存池，位于RAM中，用于存放所有<strong>Java对象</strong>，</p>
+</blockquote>
+<h4 id="2214常量存储">2.2.1.4常量存储</h4>
+<blockquote>
+<p>存放在Rom中。</p>
+</blockquote>
+<h4 id="2215非ram存储">2.2.1.5非RAM存储</h4>
+<blockquote>
+<p>持久化对象，存放在磁盘上。</p>
+</blockquote>
+<h3 id="222基本类型">2.2.2基本类型</h3>
+<blockquote>
+<p>基本数据类型是放在栈中还是放在堆中，这取决于基本类型声明的位置。</p>
+<p>基本数据类型变量在局部方法中是存放在栈中（变量名及其值）；在实例对象中是存放在堆中（变量名及其值）。</p>
+</blockquote>
+<h2 id="访问权限控制符">访问权限控制符</h2>
+<table>
+<thead>
+<tr>
+<th>修饰符</th>
+<th>类内部</th>
+<th>同一个包</th>
+<th>不同包的子类</th>
+<th>同一个工程</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>private</td>
+<td>yes</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>default（缺省）</td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>protected</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td>public</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<h1 id="3容器">3.容器</h1>
+<h2 id="31迭代器">3.1迭代器</h2>
+<h3 id="311-iterator">3.1.1 Iterator</h3>
+<blockquote>
+<p>迭代器（一种设计模式）是一个对象，它的工作是遍历并选择序列（集合）中的对象。Java的Iterator只能单向移动。这个Iterator主要用来：</p>
+<ol>
+<li>使用方法**Iterator()**要求容器返回一个Iterator对象。Iterator将准备返回序列（集合）中的第一个元素。</li>
+<li>使用**next()**获得序列（集合）中的下一个元素。</li>
+<li>使用**hasNext()**检查序列（集合）中是否还有元素。</li>
+<li>使用**remove()**将迭代器最新返回的元素进行删除。</li>
+</ol>
+</blockquote>
+<h3 id="312-listiterator">3.1.2 ListIterator</h3>
+<blockquote>
+<p>ListIterator是Iterator的子类型，只能用于List之间的各种访问，ListIterator可以<strong>双向移动</strong>，同时可以产生相对迭代器在列表中只想当前位置的前一个和后一个的<strong>索引</strong>，并且可以使用<strong>set()<strong>方法替换它访问过的</strong>最后一个元素</strong>，同时还可以通过调用**listIterator(index)**创建一个一开始就指向索引为index处的ListIterator</p>
+</blockquote>
+<pre><code class="language-java">public static void main(String[] args) {
+        List&lt;String&gt; list = Arrays.asList(&quot;s1&quot;,&quot;s2&quot;,&quot;s3&quot;,&quot;s4&quot;,&quot;s5&quot;,&quot;s6&quot;,&quot;s7&quot;,&quot;s8&quot;,&quot;s9&quot;);
+        ListIterator&lt;String&gt; iterator = list.listIterator();
+        while (iterator.hasNext()) {
+            System.out.println(&quot;previousIndex:&quot;+iterator.previousIndex()+&quot;\tnextIndex:&quot;+iterator.nextIndex()+&quot;\tnextValue:&quot;+iterator.next());
+        }
+		
+    	//指向索引为3的迭代器
+        iterator = list.listIterator(3);
+        while (iterator.hasNext()) {
+            iterator.next();
+            //同时将对应值进行替换
+            iterator.set(&quot;zero&quot;);
+        }
+        System.out.println(list);
+    }
+
+//打印前一索引 下一索引 以及下一值
+previousIndex:-1	nextIndex:0	nextValue:s1
+previousIndex:0		nextIndex:1	nextValue:s2
+previousIndex:1		nextIndex:2	nextValue:s3
+previousIndex:2		nextIndex:3	nextValue:s4
+previousIndex:3		nextIndex:4	nextValue:s5
+previousIndex:4		nextIndex:5	nextValue:s6
+previousIndex:5		nextIndex:6	nextValue:s7
+previousIndex:6		nextIndex:7	nextValue:s8
+previousIndex:7		nextIndex:8	nextValue:s9
+    //将索引为3后的值替换为zero
+[s1, s2, s3, zero, zero, zero, zero, zero, zero]
+</code></pre>
+]]></content>
+    </entry>
+</feed>
