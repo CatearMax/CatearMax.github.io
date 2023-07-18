@@ -1,0 +1,840 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LinkedList | Gridea</title>
+<link rel="shortcut icon" href="https://CatearMax.github.io/favicon.ico?v=1689678765119">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://CatearMax.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="LinkedList | Gridea - Atom Feed" href="https://CatearMax.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="3.2.1简单介绍
+
+
+LinkedList是一个继承于AbstractSequentialList的双向链表。它也可以被当做堆栈、队列或双端队列进行使用。
+LinkedList实现List接口，能让它进行队列操作。
+LinkedList实..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://CatearMax.github.io">
+  <img class="avatar" src="https://CatearMax.github.io/images/avatar.png?v=1689678765119" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              LinkedList
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-26
+              </span>
+              <span>
+                17 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h3 id="321简单介绍">3.2.1简单介绍</h3>
+<blockquote>
+<ol>
+<li><code>LinkedList</code>是一个继承于<code>AbstractSequentialList</code>的双向链表。它也可以被当做<strong>堆栈、队列或双端队列</strong>进行使用。</li>
+<li><code>LinkedList</code>实现<code>List</code>接口，能让它进行<strong>队列</strong>操作。</li>
+<li><code>LinkedList</code>实现<code>Deque</code>接口，即能将<code>LinkedList</code>当做<strong>双端队列</strong>使用。</li>
+<li><code>LinkedList</code>实现<code>Cloneable</code>，即覆盖了函数<code>clone()</code>，<strong>能被克隆</strong>。</li>
+<li><code>LinkedList</code>实现了<code>java.io.Serializable</code>接口，这意味着<code>LinkedList</code><strong>支持序列化</strong>，能通过序列化去传输。</li>
+<li><code>LinkedList</code>中的操作<strong>不是线程安全</strong>的。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="1"><a href="https://imgse.com/i/pCUnI6H"><img src="https://s1.ax1x.com/2023/06/26/pCUnI6H.png" alt="pCUnI6H.png" loading="lazy"></a></figure>
+<h3 id="322属性">3.2.2属性</h3>
+<pre><code class="language-java">//链表节点的个数
+transient int size = 0;
+//链表首节点
+transient Node&lt;E&gt; first;
+//链表尾节点
+transient Node&lt;E&gt; last;
+</code></pre>
+<pre><code class="language-java">//内部静态类
+private static class Node&lt;E&gt; {
+    //当前节点元素值
+    E item;
+    //下一个节点
+    Node&lt;E&gt; next;
+    //上一个节点
+    Node&lt;E&gt; prev;
+
+    Node(Node&lt;E&gt; prev, E element, Node&lt;E&gt; next) {
+        this.item = element;
+        this.next = next;
+        this.prev = prev;
+    }
+}
+</code></pre>
+<h3 id="323构造函数">3.2.3构造函数</h3>
+<h4 id="3231无参构造">3.2.3.1无参构造</h4>
+<pre><code class="language-java">//如果不传入参数，则使用默认构造方法创建LinkedList对象 此时创建的是一个空的链表。
+public LinkedList() {
+}
+</code></pre>
+<h4 id="3232有参构造">3.2.3.2有参构造</h4>
+<pre><code class="language-java">//首先会调用无参数的构造方法，然后调用addAll方法将集合内元素全部加入到链表中。
+public LinkedList(Collection&lt;? extends E&gt; c) {
+    this();
+    addAll(c);
+}
+</code></pre>
+<blockquote>
+<p>从上述的俩个构造方法可以看出LinkedList是一个<strong>无界链表</strong>，<strong>不存在容量不足</strong>的问题。</p>
+</blockquote>
+<h3 id="324-添加元素">3.2.4 添加元素</h3>
+<blockquote>
+<p>LinkedList主要提供<code>addFirst</code>、<code>addLast</code>、<code>add</code>、<code>addAll</code>等方法来实现元素的添加。</p>
+</blockquote>
+<h4 id="3241-addfirst">3.2.4.1 addFirst</h4>
+<pre><code class="language-java">//在链表首部添加元素
+public void addFirst(E e) {
+    linkFirst(e);
+}
+</code></pre>
+<pre><code class="language-java">private void linkFirst(E e) {
+    //将内部保存的首节点点赋值给f
+    final Node&lt;E&gt; f = first;
+    //创建新节点，新节点的next节点是当前的首节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(null, e, f);
+    //把新节点作为新的首节点
+    first = newNode;
+    //判断是否是第一个添加的元素
+    //如果是将新节点赋值给last
+    //如果不是把原首节点的prev设置为新节点
+    if (f == null)
+        last = newNode;
+    else
+        f.prev = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3242-addlast">3.2.4.2 addLast</h4>
+<pre><code class="language-java">//在链表尾部添加元素
+public void addLast(E e) {
+    linkLast(e);
+}
+</code></pre>
+<pre><code class="language-java">void linkLast(E e) {
+    //将内部保存的尾节点赋值给l
+    final Node&lt;E&gt; l = last;
+    //创建新节点，新节点的prev节点是当前的尾节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(l, e, null);
+    //把新节点作为新的尾节点
+    last = newNode;
+    //判断是否是第一个添加的元素
+    //如果是将新节点赋值给first
+    //如果不是把原首节点的next设置为新节点
+    if (l == null)
+        first = newNode;
+    else
+        l.next = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3243-add">3.2.4.3 add</h4>
+<pre><code class="language-java">//该方法和addLast方差不多，因为是无界的，所以添加元素总是会成功
+public boolean add(E e) {
+    linkLast(e);
+    return true;
+}
+</code></pre>
+<pre><code class="language-java">//该方法和上面add方法的区别是，该方法可以指定位置插入元素
+public void add(int index, E element) {
+    //判断是否越界
+    checkPositionIndex(index);
+    //如果index等于链表节点个数，就将元素添加到俩表尾部，否则调用linkBefore方法
+    if (index == size)
+        linkLast(element);
+    else
+        linkBefore(element, node(index));
+}
+</code></pre>
+<pre><code class="language-java">//获取指定位置的节点
+Node&lt;E&gt; node(int index) {
+    //如果index小于size的一半，就从首节点开始遍历，一直获取x的下一个节点
+    //如果index大于或等于size的一半，就从尾节点开始遍历，一直获取x的上一个节点
+    if (index &lt; (size &gt;&gt; 1)) {
+        Node&lt;E&gt; x = first;
+        for (int i = 0; i &lt; index; i++)
+            x = x.next;
+        return x;
+    } else {
+        Node&lt;E&gt; x = last;
+        for (int i = size - 1; i &gt; index; i--)
+            x = x.prev;
+        return x;
+    }
+}
+</code></pre>
+<pre><code class="language-java">//将元素插入到指定节点前
+void linkBefore(E e, Node&lt;E&gt; succ) {
+    assert succ != null;
+    //拿到succ的上一节点
+    final Node&lt;E&gt; pred = succ.prev;
+    //创建新节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(pred, e, succ);
+    //将新节点作为succ的上一节点
+    succ.prev = newNode;
+    //判断succ是否是首节点
+    //如果是将新节点作为新的首节点
+    //如果不是将新节点作为pred的下一节点
+    if (pred == null)
+        first = newNode;
+    else
+        pred.next = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3244-addall">3.2.4.4 addAll</h4>
+<pre><code class="language-java">//将集合内的元素依次插入index位置后
+public boolean addAll(int index, Collection&lt;? extends E&gt; c) {
+    //判断是否越界
+    checkPositionIndex(index);
+    //将集合转换为数组
+    Object[] a = c.toArray();
+    int numNew = a.length;
+    //判断数组长度是否为0，为0直接返回false
+    if (numNew == 0)
+        return false;
+    //pred上一个节点，succ当前节点
+    Node&lt;E&gt; pred, succ;
+    //判断index位置是否等于链表元素个数
+    //如果等于succ赋值为null，pred赋值为当前链表尾节点last
+    //如果不等于succ赋值为index位置的节点，pred赋值为succ的上一个节点
+    if (index == size) {
+        succ = null;
+        pred = last;
+    } else {
+        succ = node(index);
+        pred = succ.prev;
+    }
+    //循环数组
+    for (Object o : a) {
+        E e = (E) o;
+        //创建新节点
+        Node&lt;E&gt; newNode = new Node&lt;&gt;(pred, e, null);
+        //如果上一个节点为null，把新节点作为新的首节点，否则pred的下一个节点为新节点
+        if (pred == null)
+            first = newNode;
+        else
+            pred.next = newNode;
+        //把新节点赋值给上一个节点
+        pred = newNode;
+    }
+    //如果index位置的节点为null，把pred作业尾节点
+    //如果不为null，pred的下一节点为index位置的节点，succ的上一节点为pred
+    if (succ == null) {
+        last = pred;
+    } else {
+        pred.next = succ;
+        succ.prev = pred;
+    }
+    //更新链表节点个数
+    size += numNew;
+    //将集合修改次数加1
+    modCount++;
+    //因为是无界的，所以添加元素总是会成功
+    return true;
+}
+</code></pre>
+<blockquote>
+<p>看到上面这么多种方式添加元素，其实本质只是三种方式，在链表的首部、尾部、中间位置添加元素。</p>
+<p>在链表首尾添加元素很高效，在中间添加元素比较低效，首先要找到插入位置的节点，在修改前后节点的指针。</p>
+</blockquote>
+<h3 id="325删除元素">3.2.5删除元素</h3>
+<h4 id="3251-remove">3.2.5.1 remove</h4>
+<pre><code class="language-java">//删除指定元素
+public boolean remove(Object o) {
+    //因为LinkedList允许存在null，所以需要进行null判断
+    if (o == null) {
+        //从首节点开始遍历
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (x.item == null) {
+                //调用unlink方法删除指定节点
+                unlink(x);
+                return true;
+            }
+        }
+    } else {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (o.equals(x.item)) {
+                unlink(x);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+</code></pre>
+<pre><code class="language-java">//删除指定节点
+E unlink(Node&lt;E&gt; x) {
+    //获取x节点的元素，以及它上一个节点，和下一个节点
+    final E element = x.item;
+    final Node&lt;E&gt; next = x.next;
+    final Node&lt;E&gt; prev = x.prev;
+    //如果x的上一个节点为null，说明是首节点，将x的下一个节点设置为新的首节点
+    //否则将x的上一节点设置为next，将x的上一节点设为null
+    if (prev == null) {
+        first = next;
+    } else {
+        prev.next = next;
+        x.prev = null;
+    }
+    //如果x的下一节点为null，说明是尾节点，将x的上一节点设置新的尾节点
+    //否则将x的上一节点设置x的上一节点，将x的下一节点设为null
+    if (next == null) {
+        last = prev;
+    } else {
+        next.prev = prev;
+        x.next = null;
+    }
+    //将x节点的元素值设为null，等待垃圾收集器收集
+    x.item = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<pre><code class="language-java">//删除指定位置的节点，其实和上面的方法差不多
+//通过node方法获得指定位置的节点，再通过unlink方法删除
+public E remove(int index) {
+    checkElementIndex(index);
+    return unlink(node(index));
+}
+</code></pre>
+<h4 id="3252-removefirst">3.2.5.2 removeFirst</h4>
+<pre><code class="language-java">//删除首节点
+public E remove() {
+    return removeFirst();
+}
+</code></pre>
+<pre><code class="language-java">//删除首节点
+public E removeFirst() {
+    final Node&lt;E&gt; f = first;
+    //如果首节点为null，说明是空链表，抛出异常
+    if (f == null)
+        throw new NoSuchElementException();
+    return unlinkFirst(f);
+}
+</code></pre>
+<pre><code class="language-java">//删除首节点
+private E unlinkFirst(Node&lt;E&gt; f) {
+    //首节点的元素值
+    final E element = f.item;
+    //首节点的下一节点
+    final Node&lt;E&gt; next = f.next;
+    //将首节点的元素值和下一节点设为null，等待垃圾收集器收集
+    f.item = null;
+    f.next = null; // help GC
+    //将next设置为新的首节点
+    first = next;
+    //如果next为null，说明说明链表中只有一个节点，把last也设为null
+    //否则把next的上一节点设为null
+    if (next == null)
+        last = null;
+    else
+        next.prev = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<h4 id="3253-removelast">3.2.5.3 removeLast</h4>
+<pre><code class="language-java">//删除尾节点
+public E removeLast() {
+    final Node&lt;E&gt; l = last;
+    //如果首节点为null，说明是空链表，抛出异常
+    if (l == null)
+        throw new NoSuchElementException();
+    return unlinkLast(l);
+}
+</code></pre>
+<pre><code class="language-java">private E unlinkLast(Node&lt;E&gt; l) {
+    //尾节点的元素值
+    final E element = l.item;
+    //尾节点的上一节点
+    final Node&lt;E&gt; prev = l.prev;
+    //将尾节点的元素值和上一节点设为null，等待垃圾收集器收集
+    l.item = null;
+    l.prev = null; // help GC
+    //将prev设置新的尾节点
+    last = prev;
+    //如果prev为null，说明说明链表中只有一个节点，把first也设为null
+    //否则把prev的下一节点设为null
+    if (prev == null)
+        first = null;
+    else
+        prev.next = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<blockquote>
+<p>删除和添加一样，其实本质只有三种方式，即删除首部、尾部、中间节点。</p>
+<p>和添加一样，首尾删除很高效，删除中间元素比较低效要先找到节点位置，再修改前后指针。</p>
+</blockquote>
+<h3 id="326获取元素">3.2.6获取元素</h3>
+<h4 id="3261-get">3.2.6.1 get</h4>
+<pre><code class="language-java">//获取指定位置的元素值
+public E get(int index) {
+    //判断是否越界
+    checkElementIndex(index);
+    //直接调用node方法获取指定位置的节点，并反回其元素值
+    return node(index).item;
+}
+</code></pre>
+<h4 id="3262-getfirst">3.2.6.2 getFirst</h4>
+<pre><code class="language-java">//获取链表首节点的元素值
+public E getFirst() {
+    final Node&lt;E&gt; f = first;
+    //判断是否是空链表，如果是抛出异常，否则直接返回首节点的元素值
+    if (f == null)
+        throw new NoSuchElementException();
+    return f.item;
+}
+</code></pre>
+<h4 id="3263-getlast">3.2.6.3 getLast</h4>
+<pre><code class="language-java">//获取链表尾节点的元素值
+public E getLast() {
+    final Node&lt;E&gt; l = last;
+    //判断是否是空链表，如果是抛出异常，否则直接返回尾节点的元素值
+    if (l == null)
+        throw new NoSuchElementException();
+    return l.item;
+}
+</code></pre>
+<h4 id="327-更新指定节点的元素值">3.2.7 更新指定节点的元素值</h4>
+<pre><code class="language-java">public E set(int index, E element) {
+    //判断是否越界
+    checkElementIndex(index);
+    //指定位置的节点
+    Node&lt;E&gt; x = node(index);
+    E oldVal = x.item;
+    //设置新值
+    x.item = element;
+    //返回老值
+    return oldVal;
+}
+</code></pre>
+<h3 id="328-队列">3.2.8 队列</h3>
+<pre><code class="language-java">//获取队列的第一个元素，如果为null会返回null
+public E peek() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : f.item;
+}
+
+//获取队列的第一个元素，如果为null会抛出异常
+public E element() {
+    return getFirst();
+}
+
+//获取队列的第一个元素，如果为null会返回null
+public E poll() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+
+//获取队列的第一个元素，如果为null会抛出异常
+public E remove() {
+    return removeFirst();
+}
+
+//将元素添加到队列尾部
+public boolean offer(E e) {
+    return add(e);
+}
+</code></pre>
+<h3 id="329-双向队列">3.2.9 双向队列</h3>
+<pre><code class="language-java">//将元素添加到首
+public boolean offerFirst(E e) {
+    addFirst(e);
+    return true;
+}
+	
+//将元素添加到尾部
+public boolean offerLast(E e) {
+    addLast(e);
+    return true;
+}
+
+//获取首部的元素值
+public E peekFirst() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : f.item;
+}
+
+//获取尾部的元素值
+public E peekLast() {
+    final Node&lt;E&gt; l = last;
+    return (l == null) ? null : l.item;
+}
+
+//删除首部，如果为null会返回null
+public E pollFirst() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+
+//删除尾部，如果为null会返回null
+public E pollLast() {
+    final Node&lt;E&gt; l = last;
+    return (l == null) ? null : unlinkLast(l);
+}
+
+//将元素添加到首部
+public void push(E e) {
+    addFirst(e);
+}
+
+//删除首部，如果为null会抛出异常
+public E pop() {
+    return removeFirst();
+}
+
+//删除链表中元素值等于o的第一个节点，其实和remove方法是一样的，因为内部还是调用的remove方法
+public boolean removeFirstOccurrence(Object o) {
+    return remove(o);
+}
+
+//删除链表中元素值等于o的最后一个节点
+public boolean removeLastOccurrence(Object o) {
+    //因为LinkedList允许存在null，所以需要进行null判断
+    if (o == null) {
+        //和remove方法的区别它是从尾节点往前遍历
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            if (x.item == null) {
+                //调用unlink方法删除指定节点
+                unlink(x);
+                return true;
+            }
+        }
+    } else {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            if (o.equals(x.item)) {
+                unlink(x);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+</code></pre>
+<h3 id="3210-其他api">3.2.10 其他api</h3>
+<pre><code class="language-java">//判断元素是否存在于链表中
+public boolean contains(Object o) {
+    return indexOf(o) != -1;
+}
+	
+//从前往后查找返回节点元素值等于o的位置，不存在返回-1
+public int indexOf(Object o) {
+    int index = 0;
+    if (o == null) {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (x.item == null)
+                return index;
+            index++;
+        }
+    } else {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (o.equals(x.item))
+                return index;
+            index++;
+        }
+    }
+    return -1;
+}
+
+//该方法和上面indexOf方法相反，它是从后往前查找返回节点元素值等于o的位置，不存在返回-1
+public int lastIndexOf(Object o) {
+    int index = size;
+    if (o == null) {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            index--;
+            if (x.item == null)
+                return index;
+        }
+    } else {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            index--;
+            if (o.equals(x.item))
+                return index;
+        }
+    }
+    return -1;
+}
+
+//克隆函数，返回LinkedList的克隆对象
+public Object clone() {
+    LinkedList&lt;E&gt; clone = superClone();
+
+    // 将新建LinkedList置于最初状态
+    clone.first = clone.last = null;
+    clone.size = 0;
+    clone.modCount = 0;
+
+    // 将链表中所有节点的数据都添加到克隆对象中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        clone.add(x.item);
+
+    return clone;
+}
+
+//返回LinkedList节点单元素值的Object数组
+public Object[] toArray() {
+    Object[] result = new Object[size];
+    int i = 0;
+    //将链表中所有节点的元素值添加到object数组中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        result[i++] = x.item;
+    return result;
+}
+
+// 返回LinkedList的模板数组。所谓模板数组，即可以将T设为任意的数据类型
+public &lt;T&gt; T[] toArray(T[] a) {
+    //如果a的长度小于LinkedList节点个数，说明a不能容纳LinkedList的所有节点元素值
+    //则新建一个数组，数组大小为LinkedList节点个数，并赋值给a
+    if (a.length &lt; size)
+        a = (T[])java.lang.reflect.Array.newInstance(
+                                a.getClass().getComponentType(), size);
+    int i = 0;
+    Object[] result = a;
+    // 将链表中所有节点的元素值都添加到数组a中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        result[i++] = x.item;
+
+    if (a.length &gt; size)
+        a[size] = null;
+
+    return a;
+}
+
+//将LinkedList中的数据写入到输入流中，先写容量，再写数据
+private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+    // Write out any hidden serialization magic
+    s.defaultWriteObject();
+
+    // Write out size
+        s.writeInt(size);
+
+    // Write out all elements in the proper order.
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        s.writeObject(x.item);
+}
+
+//从输入流中读取数据，一样是先读容量，再读数据
+private void readObject(java.io.ObjectInputStream s)
+    throws java.io.IOException, ClassNotFoundException {
+    // Read in any hidden serialization magic
+    s.defaultReadObject();
+
+    // Read in size
+    int size = s.readInt();
+    //从输入流中将元素值逐个添加到链表中
+    // Read in all elements in the proper order.
+    for (int i = 0; i &lt; size; i++)
+        linkLast((E)s.readObject());
+}
+</code></pre>
+<h2 id=""></h2>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li>
+<ul>
+<li><a href="#321%E7%AE%80%E5%8D%95%E4%BB%8B%E7%BB%8D">3.2.1简单介绍</a></li>
+<li><a href="#322%E5%B1%9E%E6%80%A7">3.2.2属性</a></li>
+<li><a href="#323%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0">3.2.3构造函数</a>
+<ul>
+<li><a href="#3231%E6%97%A0%E5%8F%82%E6%9E%84%E9%80%A0">3.2.3.1无参构造</a></li>
+<li><a href="#3232%E6%9C%89%E5%8F%82%E6%9E%84%E9%80%A0">3.2.3.2有参构造</a></li>
+</ul>
+</li>
+<li><a href="#324-%E6%B7%BB%E5%8A%A0%E5%85%83%E7%B4%A0">3.2.4 添加元素</a>
+<ul>
+<li><a href="#3241-addfirst">3.2.4.1 addFirst</a></li>
+<li><a href="#3242-addlast">3.2.4.2 addLast</a></li>
+<li><a href="#3243-add">3.2.4.3 add</a></li>
+<li><a href="#3244-addall">3.2.4.4 addAll</a></li>
+</ul>
+</li>
+<li><a href="#325%E5%88%A0%E9%99%A4%E5%85%83%E7%B4%A0">3.2.5删除元素</a>
+<ul>
+<li><a href="#3251-remove">3.2.5.1 remove</a></li>
+<li><a href="#3252-removefirst">3.2.5.2 removeFirst</a></li>
+<li><a href="#3253-removelast">3.2.5.3 removeLast</a></li>
+</ul>
+</li>
+<li><a href="#326%E8%8E%B7%E5%8F%96%E5%85%83%E7%B4%A0">3.2.6获取元素</a>
+<ul>
+<li><a href="#3261-get">3.2.6.1 get</a></li>
+<li><a href="#3262-getfirst">3.2.6.2 getFirst</a></li>
+<li><a href="#3263-getlast">3.2.6.3 getLast</a></li>
+<li><a href="#327-%E6%9B%B4%E6%96%B0%E6%8C%87%E5%AE%9A%E8%8A%82%E7%82%B9%E7%9A%84%E5%85%83%E7%B4%A0%E5%80%BC">3.2.7 更新指定节点的元素值</a></li>
+</ul>
+</li>
+<li><a href="#328-%E9%98%9F%E5%88%97">3.2.8 队列</a></li>
+<li><a href="#329-%E5%8F%8C%E5%90%91%E9%98%9F%E5%88%97">3.2.9 双向队列</a></li>
+<li><a href="#3210-%E5%85%B6%E4%BB%96api">3.2.10 其他api</a></li>
+</ul>
+</li>
+<li></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://CatearMax.github.io/post/localdatetime/">
+              <h3 class="post-title">
+                LocalDateTime
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://CatearMax.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

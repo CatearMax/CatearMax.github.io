@@ -1,0 +1,1764 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://CatearMax.github.io</id>
+    <title>Gridea</title>
+    <updated>2023-07-18T11:12:50.030Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://CatearMax.github.io"/>
+    <link rel="self" href="https://CatearMax.github.io/atom.xml"/>
+    <subtitle>温故而知新</subtitle>
+    <logo>https://CatearMax.github.io/images/avatar.png</logo>
+    <icon>https://CatearMax.github.io/favicon.ico</icon>
+    <rights>All rights reserved 2023, Gridea</rights>
+    <entry>
+        <title type="html"><![CDATA[CAP]]></title>
+        <id>https://CatearMax.github.io/post/cap/</id>
+        <link href="https://CatearMax.github.io/post/cap/">
+        </link>
+        <updated>2023-07-18T11:12:21.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="1cap由来">1.CAP由来</h1>
+<p>我们可以想象一下，在 CAP 定理提出之前，我们在同步两个节点的数据时，如果发生了错误，到底我们应该怎么做呢？如果没有统一的标准和方向，那很可能在一套分布式系统中的不同模块，会出现不同的处理情况。</p>
+<p>假设一套系统，由 A、B 两个模块构成。</p>
+<p>A 模块的设计理念是：节点间出现了问题，它可能会选择不断的重试，一直等到节点通信恢复。</p>
+<figure data-type="image" tabindex="1"><img src="https://pica.zhimg.com/80/v2-12e62fdae38510c6ab59238e17c8386d_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>而 B 的设计理念是：节点间出现了问题，它断开就是了，可能最多就记录下状态，等以后处理。</p>
+<figure data-type="image" tabindex="2"><img src="https://pic1.zhimg.com/80/v2-f630ce17fb07bcccb21e7d4cb7f9e6f1_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>可是，当 A、B 之间出现了通信怎么办？那会出现 A 往 B 发请求，出问题会不断重试。而 B 往 A 发请求，出问题则直接断开的情况。</p>
+<p>于是，2000 年时，Eric Brewer 教授在 PODC 会议上提出了 CAP 理论，但是由于没有被证明过，所以，当时只能被称为 CAP 猜想。这个猜想引起了巨大的反响，因为 CAP 很符合人们对设计纲领的预期。</p>
+<h1 id="2cap是什么">2.CAP是什么</h1>
+<h2 id="21-c数据一致性">2.1 C：数据一致性</h2>
+<p>简单来说就是指数据能一起变化，是能让数据整齐划一。好的，生产两个问题</p>
+<p>问：数据何时会一起变化？</p>
+<p>答：数据在写请求时会发生变化。</p>
+<p>问：数据怎么样才能称为一起变化了？</p>
+<p>答：数据发生变化是否一致是需要经过读请求来做检验的。并不是说服务器对写请求返回成功就发生一致性变化了。</p>
+<p>我们的分布式存储系统有两个节点，每个节点都包含了一部分需要被变化的数据。如果经过一次写请求后，两个节点都发生了数据变化。然后，读请求把这些变化后的数据都读取到了，我们就把这次数据修改称为数据发生了一致性变化。如下图：</p>
+<figure data-type="image" tabindex="3"><img src="https://picx.zhimg.com/80/v2-34031bde4b30adfe7458997713ea08f8_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>但是上面这种情况并不是完整的一致性，因为系统不可能永久正常的运行下去。</p>
+<p>如果系统内部发生了问题从而导致系统的节点无法发生一致性变化会怎么样呢？当我们这样做的时候，就意味着想看到最新数据的读请求们，很可能会看到旧数据，或者说获取到不同版本的数据。此时，为了保证分布式系统对外的数据一致性，于是选择不返回任何数据。如下图：</p>
+<figure data-type="image" tabindex="4"><img src="https://picx.zhimg.com/80/v2-0204ccbd9f2db25f214975123c6b43fc_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>只需要明白 CAP 定理主要描述的是<strong>状态</strong>。</p>
+<h2 id="22-a可用性">2.2 A：可用性</h2>
+<p>要求系统内的节点们接收到了无论是写请求还是读请求，都要能处理并给回响应结果。</p>
+<p>需满足两点：</p>
+<ol>
+<li>返回结果必须在合理的时间以内，这个合理的时间是根据业务来定的。</li>
+<li>需要系统内能正常接收请求的所有节点都返回结果。这又包含两层含义：</li>
+</ol>
+<ul>
+<li>如果节点不能正常接收请求了，比如宕机了，系统崩溃了，而其他节点依然能正常接收请求，那么，我们说系统依然是可用的，也就是说，部分宕机没事儿，不影响可用性指标。</li>
+<li>如果节点能正常接收请求，但是发现节点内部数据有问题，那么也必须返回结果，哪怕返回的结果是有问题的。如下图：</li>
+</ul>
+<figure data-type="image" tabindex="5"><img src="https://picx.zhimg.com/80/v2-b0a5d7c2b86ea7e37a0db164c9f157ff_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<h2 id="23-p分区容忍性">2.3 P:分区容忍性</h2>
+<p>分布式的存储系统会有很多的节点，这些节点都是通过网络进行通信。而网络是不可靠的，当节点和节点之间的通信出现了问题，此时，就称当前的分布式存储系统出现了分区。</p>
+<p>举两个例子：</p>
+<ol>
+<li>我们的分布式存储系统有 A、B 两个节点。那么，当 A、B 之间由于可能路由器、交换机等底层网络设备出现了故障，A 和 B 通信出现了问题，但是 A、B 依然都在运行，都在对外提供服务。这时候，就说 A 和 B 发生了分区。</li>
+<li>当 A 出现了宕机，A 和 B 节点之间通信也是出现了问题，那么我们也称 A 和 B 发生了分区。</li>
+</ol>
+<p>综上，我们可以知道，只要在分布式系统中，节点通信出现了问题，那么就出现了分区。</p>
+<figure data-type="image" tabindex="6"><img src="https://picx.zhimg.com/80/v2-b4390ebafc1e914f2b8949eaefa2bcb3_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>分区容忍性是指什么？ 它是说，如果出现了分区问题，我们的分布式存储系统还需要继续运行。不能因为出现了分区问题，整个系统全部熄火了。</p>
+<figure data-type="image" tabindex="7"><img src="https://pic1.zhimg.com/80/v2-a57436c47f10d12dbb53d288bbed6b92_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<h2 id="3-cap怎么选择">3. CAP怎么选择</h2>
+<p>CAP三种特性只能选择两种，在分布式系统内，P 是必然的发生的，不选 P，一旦发生分区错误，整个分布式系统就完全无法使用了，这是不符合实际需要的。所以，对于分布式系统，我们只能能考虑当发生分区错误时，如何选择一致性和可用性。</p>
+<p>而根据一致性和可用性的选择不同，开源的分布式系统往往又被分为 CP 系统和 AP 系统。</p>
+<p>当一套系统在发生分区故障后，客户端的任何请求都被卡死或者超时，但是，系统的每个节点总是会返回一致的数据，则这套系统就是 CP 系统，经典的比如 Zookeeper。</p>
+<p>如果一套系统发生分区故障后，客户端依然可以访问系统，但是获取的数据有的是新的数据，有的还是老数据，那么这套系统就是 AP 系统，经典的比如 Eureka。</p>
+<h2 id="4-对cap的常见误解">4. 对CAP的常见误解</h2>
+<ul>
+<li>误解一：分布式系统因为CAP放弃了C或者A中的其中一个：</li>
+</ul>
+<p><strong>当没有出现分区问题的时候，系统就应该有完美的数据一致性和可用性。</strong></p>
+<ul>
+<li>误解二：C和A之间的选择时针对整个分布式系统的，只能整体考虑C和A之间的选择：</li>
+</ul>
+<p>当分区发生的时候，其实对一致性和可用性的抉择是局部性的，而不是针对整个系统的。</p>
+<p>比如，当我们做一套支付系统的时候，会员的财务相关像账户余额，账务流水是必须强一致性的。这时候，你就要考虑选 C。但是，会员的名字，会员的支付设置就不必考虑强一致性，可以选择可用性 A。</p>
+<ul>
+<li>CAP的三个特性只有是和否两种极端选择，而不是一个范围</li>
+</ul>
+<p>CAP 理论的三种特性不是 Boolean 类型的，不是一致和不一致，可用和不可用，分区和没分区的这类二选一的选项。而是这三种特性都是范围类型。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ThreadLocal]]></title>
+        <id>https://CatearMax.github.io/post/threadlocal/</id>
+        <link href="https://CatearMax.github.io/post/threadlocal/">
+        </link>
+        <updated>2023-06-26T11:24:21.000Z</updated>
+        <content type="html"><![CDATA[<h1 id="1-简单介绍和举例">1. 简单介绍和举例</h1>
+<p>​		ThreadLocal是本地线程变量，ThreadLocal中填充的变量属于<strong>当前</strong>线程，该变量对其他线程而言是隔离的。ThreadLocal为变量在每个线程中都创建了一个副本，那么每个线程可以访问自己内部的副本变量。</p>
+<p>​	举一个简单的例子</p>
+<pre><code class="language-java">		ThreadLocal&lt;Integer&gt; threadLocal = new ThreadLocal&lt;&gt;();
+        Thread t1 = new Thread(() -&gt; {
+            System.out.println(threadLocal.get());
+            threadLocal.set(1);
+            System.out.println(threadLocal.get());
+        });
+        Thread t2 = new Thread(() -&gt; {
+            System.out.println(threadLocal.get());
+            threadLocal.set(2);
+            System.out.println(threadLocal.get());
+        });
+        t1.start();
+        //主线程调用t1.join(),故主线程需要等到t1线程结束后再执行
+        t1.join();
+        t2.start();
+
+				//最后结果：
+				//null 1 null 2
+</code></pre>
+<p>可以看到，t1、t2两个线程对于线程变量是隔离的互不干扰。</p>
+<h1 id="2-原理">2. 原理</h1>
+<p>​		从如上例子知道threadLocal对于不同线程之前隔离，那么我们从源码查看为什么是隔离的。</p>
+<h2 id="21-线程隔离">2.1 线程隔离</h2>
+<pre><code class="language-java">ThreadLocal类:
+    public void set(T value) {
+      	//获取当前线程
+        Thread t = Thread.currentThread();
+      	//获取ThreadLocalMap对象
+        ThreadLocalMap map = getMap(t);
+        if (map != null) {
+          	//覆盖 以当前线程为key，
+            map.set(this, value);
+        } else {
+          	//初始化map
+            createMap(t, value);
+        }
+    }
+
+//返回当前线程的threadLocals属性
+    ThreadLocalMap getMap(Thread t) {
+            return t.threadLocals;
+        }
+//初始化map
+		void createMap(Thread t, T firstValue) {
+        t.threadLocals = new ThreadLocalMap(this, firstValue);
+    }
+
+Thread类:
+			ThreadLocal.ThreadLocalMap threadLocals = null;
+
+</code></pre>
+<p>​			其实到这里就明白了，ThreadLocal将我们需要保存的value保存到<strong>当前线程</strong>的threadLocals属性中，数据是存在自己线程Thread的threadLocals变量里面的，别人没办法拿到，从而实现了隔离。</p>
+<h2 id="22-threadlocalmap底层结构">2.2 ThreadLocalMap底层结构</h2>
+<p>​		ThreadLocalMap未实现Map接口，而且他的Entry是继承WeakReference（弱引用）的，也没有看到HashMap中的next，所以不存在链表了。</p>
+<pre><code class="language-java">ThreadLocal类：
+  		//一个内部类，可以看作一个map
+  		static class ThreadLocalMap {
+        //map中的Entry采用弱引用
+        static class Entry extends WeakReference&lt;ThreadLocal&lt;?&gt;&gt; {
+            /** The value associated with this ThreadLocal. */
+            Object value;
+
+            Entry(ThreadLocal&lt;?&gt; k, Object v) {
+                super(k);
+                value = v;
+            }
+        }
+        //省略
+      }
+</code></pre>
+<p>​		结构大致如下：</p>
+<figure data-type="image" tabindex="1"><img src="https://picx.zhimg.com/80/v2-539374b14bbd71707aca2d7ddfc6f691_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<h2 id="22-使用数组的原因和如何解决hash冲突">2.2 使用数组的原因和如何解决hash冲突</h2>
+<p>​		数组是因为我们开发过程中可以一个线程可以有多个TreadLocal来存放不同类型的对象的，但是他们都将放到你当前线程的ThreadLocalMap里，所以肯定要数组来存。</p>
+<p>​		hash冲突我们可以看源码：</p>
+<pre><code class="language-java">private void set(ThreadLocal&lt;?&gt; key, Object value) {
+           Entry[] tab = table;
+            int len = tab.length;
+            int i = key.threadLocalHashCode &amp; (len-1);
+            for (Entry e = tab[i];
+                 e != null;
+                 e = tab[i = nextIndex(i, len)]) {
+                ThreadLocal&lt;?&gt; k = e.get();
+
+                if (k == key) {
+                    e.value = value;
+                    return;
+                }
+                if (k == null) {
+                    replaceStaleEntry(key, value, i);
+                    return;
+                }
+            }
+            tab[i] = new Entry(key, value);
+            int sz = ++size;
+            if (!cleanSomeSlots(i, sz) &amp;&amp; sz &gt;= threshold)
+                rehash();
+        }
+</code></pre>
+<p>​		从源码里面看到ThreadLocalMap在存储的时候会给每一个ThreadLocal对象一个threadLocalHashCode，在插入过程中，根据ThreadLocal对象的<a href="https://www.zhihu.com/search?q=hash%E5%80%BC&amp;search_source=Entity&amp;hybrid_search_source=Entity&amp;hybrid_search_extra=%7B%22sourceType%22%3A%22answer%22%2C%22sourceId%22%3A1367225682%7D">hash值</a>，定位到table中的位置i，<strong>int i = key.threadLocalHashCode &amp; (len-1)</strong>。</p>
+<p>​		然后会判断一下：如果当前位置是空的，就初始化一个Entry对象放在位置i上；</p>
+<pre><code class="language-java">if (k == null) {
+    replaceStaleEntry(key, value, i);
+    return;
+}
+</code></pre>
+<p>​		如果位置i不为空，如果这个Entry对象的key正好是即将设置的key，那么就刷新Entry中的value；</p>
+<pre><code class="language-java">if (k == key) {
+    e.value = value;
+    return;
+}
+
+</code></pre>
+<p>​		如果位置i的不为空，而且key不等于entry，那就找下一个空位置，直到为空为止。</p>
+<figure data-type="image" tabindex="2"><img src="https://pic1.zhimg.com/80/v2-048025b3af136ea392b25ae31f4ad7e2_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>这样的话，在get的时候，也会根据ThreadLocal对象的hash值，定位到table中的位置，然后判断该位置Entry对象中的key是否和get的key一致，如果不一致，就判断下一个位置，set和get如果冲突严重的话，效率还是很低的。</p>
+<p>以下是get的源码，是不是就感觉很好懂了：</p>
+<pre><code class="language-java">作者：敖丙
+链接：https://www.zhihu.com/question/341005993/answer/1367225682
+来源：知乎
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+private Entry getEntry(ThreadLocal&lt;?&gt; key) {
+            int i = key.threadLocalHashCode &amp; (table.length - 1);
+            Entry e = table[i];
+            if (e != null &amp;&amp; e.get() == key)
+                return e;
+            else
+                return getEntryAfterMiss(key, i, e);
+        }
+
+ private Entry getEntryAfterMiss(ThreadLocal&lt;?&gt; key, int i, Entry e) {
+            Entry[] tab = table;
+            int len = tab.length;
+// get的时候一样是根据ThreadLocal获取到table的i值，然后查找数据拿到后会对比key是否相等  if (e != null &amp;&amp; e.get() == key)。
+            while (e != null) {
+                ThreadLocal&lt;?&gt; k = e.get();
+              // 相等就直接返回，不相等就继续查找，找到相等位置。
+                if (k == key)
+                    return e;
+                if (k == null)
+                    expungeStaleEntry(i);
+                else
+                    i = nextIndex(i, len);
+                e = tab[i];
+            }
+            return null;
+        }
+</code></pre>
+<h2 id="23-对象存放位置">2.3 对象存放位置</h2>
+<p>​		在Java中，栈内存归属于单个线程，每个线程都会有一个栈内存，其存储的变量只能在其所属线程中可见，即栈内存可以理解成线程的私有内存，而堆内存中的对象对所有线程可见，堆内存中的对象可以被所有线程访问。ThreadLocal实例实际上也是被其创建的类持有（更顶端应该是被线程持有），而ThreadLocal的值其实也是被线程实例持有，它们都是位于堆上，只是通过一些技巧将可见性修改成了线程可见。</p>
+<h2 id="24-threadlocalmap的弱引用">2.4 ThreadLocalMap的弱引用</h2>
+<p>​		ThreadLocal在保存的时候会把自己当做Key存在ThreadLocalMap中，正常情况应该是key和value都应该被外界强引用才对，但是现在key被设计成WeakReference弱引用了。</p>
+<figure data-type="image" tabindex="3"><img src="https://picx.zhimg.com/80/v2-48be8cfab9470e40079c68e04df7c88a_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>弱引用概念：</p>
+<blockquote>
+<p>只具有弱引用的对象拥有更短暂的生命周期，在垃圾回收器线程扫描它所管辖的内存区域的过程中，一旦发现了只具有弱引用的对象，不管当前内存空间足够与否，都会回收它的内存。 不过，由于<a href="https://www.zhihu.com/search?q=%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8&amp;search_source=Entity&amp;hybrid_search_source=Entity&amp;hybrid_search_extra=%7B%22sourceType%22%3A%22answer%22%2C%22sourceId%22%3A1367225682%7D">垃圾回收器</a>是一个优先级很低的线程，因此不一定会很快发现那些只具有弱引用的对象。</p>
+</blockquote>
+<p>这就导致了一个问题，ThreadLocal在没有外部强引用时，发生GC时会被回收，如果创建ThreadLocal的线程一直持续运行，那么这个Entry对象中的value就有可能一直得不到回收，发生内存泄露。</p>
+<p>就比如线程池里面的线程，线程都是复用的，那么之前的线程实例处理完之后，出于复用的目的线程依然存活，所以，ThreadLocal设定的value值被持有，导致内存泄露。</p>
+<p>按照道理一个线程使用完，ThreadLocalMap是应该要被清空的，但是现在线程被复用了。</p>
+<h1 id="使用场景">使用场景</h1>
+<ol>
+<li>Spring采用Threadlocal的方式，来保证单个线程中的数据库操作使用的是同一个数据库连接，同时，采用这种方式可以使业务层使用事务时不需要感知并管理connection对象，通过传播级别，巧妙地管理多个事务配置之间的切换，挂起和恢复。Spring框架里面就是用的ThreadLocal来实现这种隔离，主要是在TransactionSynchronizationManager这个类里面，代码如下所示:</li>
+</ol>
+<pre><code class="language-java">private static final Log logger = LogFactory.getLog(TransactionSynchronizationManager.class);
+
+ private static final ThreadLocal&lt;Map&lt;Object, Object&gt;&gt; resources =
+   new NamedThreadLocal&lt;&gt;(&quot;Transactional resources&quot;);
+
+ private static final ThreadLocal&lt;Set&lt;TransactionSynchronization&gt;&gt; synchronizations =
+   new NamedThreadLocal&lt;&gt;(&quot;Transaction synchronizations&quot;);
+
+ private static final ThreadLocal&lt;String&gt; currentTransactionName =
+   new NamedThreadLocal&lt;&gt;(&quot;Current transaction name&quot;);
+
+</code></pre>
+<ol start="2">
+<li>
+<p>在项目中存在一个线程经常遇到横跨若干方法调用，需要传递的对象，也就是上下文（Context），它是一种状态，经常就是是用户身份、任务信息等，就会存在<a href="https://www.zhihu.com/search?q=%E8%BF%87%E6%B8%A1%E4%BC%A0%E5%8F%82&amp;search_source=Entity&amp;hybrid_search_source=Entity&amp;hybrid_search_extra=%7B%22sourceType%22%3A%22answer%22%2C%22sourceId%22%3A1367225682%7D">过渡传参</a>的问题。</p>
+<p>使用到类似责任链模式，给每个方法增加一个context参数非常麻烦，而且有些时候，如果调用链有无法修改源码的第三方库，对象参数就传不进去了，所以我使用到了ThreadLocal去做了一下改造，这样只需要在调用前在ThreadLocal中设置参数，其他地方get一下就好了。</p>
+</li>
+</ol>
+<pre><code class="language-java">before
+  
+void work(User user) {
+    getInfo(user);
+    checkInfo(user);
+    setSomeThing(user);
+    log(user);
+}
+
+then
+  
+void work(User user) {
+try{
+   threadLocalUser.set(user);
+   // 他们内部  User u = threadLocalUser.get(); 就好了
+    getInfo();
+    checkInfo();
+    setSomeThing();
+    log();
+    } finally {
+     threadLocalUser.remove();
+    }
+}
+</code></pre>
+<h1 id="注意️">注意⚠️</h1>
+<p>用完 ThreadLocal 一定要记得手动调用 remove() 方法，否则可能会产生脏数据甚至产生内存泄漏。</p>
+<p>为啥呢？上面不是说线程结束时，会将 threadLocals 置为 null 吗？</p>
+<p>是的，线程结束时，确实会做清理工作。</p>
+<p>但，如果线程一直不结束呢？如果线程会被复用呢？比如使用了线程池。</p>
+<p>所以，使用 ThreadLocal 一定要手动 remove()。</p>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[ArrayList]]></title>
+        <id>https://CatearMax.github.io/post/arraylist/</id>
+        <link href="https://CatearMax.github.io/post/arraylist/">
+        </link>
+        <updated>2023-06-26T02:42:35.000Z</updated>
+        <content type="html"><![CDATA[<h3 id="331简单介绍">3.3.1简单介绍</h3>
+<blockquote>
+<ol>
+<li><code>ArrayList</code>是一个<strong>数组队列</strong>，相当于<strong>动态数组</strong>。</li>
+<li><code>ArrayList</code>继承了AbstractList，实现了List。它是一个数组队列，提供了相关的添加、删除、修改、遍历等功能。</li>
+<li><code>ArrayList</code>实现了RandmoAccess接口，即提供了随机访问的功能。</li>
+<li><code>ArrayList</code>实现了Cloneable接口，即覆盖了函数clone()，能被克隆。</li>
+<li><code>ArrayList</code>实现了java.io.Serializable接口，这意味着ArrayList支持序列化，能通过序列化去传输。</li>
+<li><code>ArrayList</code>不是线程安全的，多线程情况下可以选择<strong>CopyOnWriteArrayList</strong>或者使用<strong>Collections</strong>中的<strong>synchronizedList</strong>方法将其包装成一个线程安全的List。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="1"><a href="https://imgse.com/i/pCUnffO"><img src="https://s1.ax1x.com/2023/06/26/pCUnffO.png" alt="pCUnffO.png" loading="lazy"></a></figure>
+<h3 id="332-api">3.3.2 API</h3>
+<pre><code class="language-java">// Collection中定义的API
+返回值				  方法名
+boolean             add(E object)
+boolean             addAll(Collection&lt;? extends E&gt; collection)
+void                clear()
+boolean             contains(Object object)
+boolean             containsAll(Collection&lt;?&gt; collection)
+boolean             equals(Object object)
+int                 hashCode()
+boolean             isEmpty()
+Iterator&lt;E&gt;         iterator()
+boolean             remove(Object object)
+boolean             removeAll(Collection&lt;?&gt; collection)
+boolean             retainAll(Collection&lt;?&gt; collection)
+int                 size()
+&lt;T&gt; T[]             toArray(T[] array)
+Object[]            toArray()
+// AbstractCollection中定义的API
+void                add(int location, E object)
+boolean             addAll(int location, Collection&lt;? extends E&gt; collection)
+E                   get(int location)
+int                 indexOf(Object object)
+int                 lastIndexOf(Object object)
+ListIterator&lt;E&gt;     listIterator(int location)
+ListIterator&lt;E&gt;     listIterator()
+E                   remove(int location)
+E                   set(int location, E object)
+List&lt;E&gt;             subList(int start, int end)
+// ArrayList新增的API
+Object               clone()
+void                 ensureCapacity(int minimumCapacity)
+void                 trimToSize()
+void                 removeRange(int fromIndex, int toIndex)
+</code></pre>
+<h3 id="333属性">3.3.3属性</h3>
+<pre><code class="language-java">//序列化id
+private static final long serialVersionUID = 8683452581122892189L;
+//容器默认初始化大小
+private static final int DEFAULT_CAPACITY = 10;
+//一个空对象
+private static final Object[] EMPTY_ELEMENTDATA = {};
+//一个空对象，如果使用默认构造函数创建ArrayList，则默认对象内容是该值
+private static final Object[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
+//ArrayList存放对象的容器，后面的添加、删除等操作都是基于该属性来进行操作
+transient Object[] elementData;
+//当前列表已使用的长度
+private int size;
+//数组最大长度（2147483639），这里为什么是Integer.MAX_VALUE - 8是因为有些虚拟机在数组中保留了一些头部信息，防止内存溢出
+private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+//这个是从AbstractList继承过来的，代表ArrayList集合修改的次数
+protected transient int modCount = 0;
+</code></pre>
+<blockquote>
+<p>关于Java中transient关键字的解释：</p>
+<p>我们都知道一个对象只要实现了Serilizable接口，这个对象就可以被序列化，java的这种序列化模式为开发者提供了很多便利，我们可以不必关系具体序列化的过程，只要这个类实现了Serilizable接口，这个类的所有属性和方法都会自动序列化。</p>
+<p>然而在实际开发过程中，我们常常会遇到这样的问题，这个类的有些属性需要序列化，而其他属性不需要被序列化，打个比方，如果一个用户有一些敏感信息（如密码，银行卡号等），为了安全起见，不希望在网络操作（主要涉及到序列化操作，本地序列化缓存也适用）中被传输，这些信息对应的变量就可以加上transient关键字。换句话说，这个字段的生命周期仅存于调用者的内存中而不会写到磁盘里持久化。</p>
+<p><strong>总之，java 的transient关键字为我们提供了便利，你只需要实现Serilizable接口，将不需要序列化的属性前添加关键字transient，序列化对象的时候，这个属性就不会序列化到指定的目的地中。</strong></p>
+</blockquote>
+<h3 id="334构造函数">3.3.4构造函数</h3>
+<h4 id="3341无参构造">3.3.4.1无参构造</h4>
+<pre><code class="language-java">//注意：此时我们创建的ArrayList对象中的elementData中的长度是0，size是0，当进行第一次add的时候，elementDate将会变成默认的长度：10。
+public ArrayList() {
+        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
+    }
+</code></pre>
+<h4 id="3342带int类型的构造函数">3.3.4.2带int类型的构造函数</h4>
+<pre><code class="language-java">//如果传入参数，则代表指定ArrayList的初始数组长度；传入参数如果是大于0，则使用用户的参数初始化；如果参数等于0，则用内部的空对象EMPTY_ELEMENTDATA的地址直接赋值给elementData；否则抛出异常，如下：
+public ArrayList(int initialCapacity) {
+        if (initialCapacity &gt; 0) {
+            this.elementData = new Object[initialCapacity];
+        } else if (initialCapacity == 0) {
+            this.elementData = EMPTY_ELEMENTDATA;
+        } else {
+            throw new IllegalArgumentException(&quot;Illegal Capacity: &quot;+
+                                               initialCapacity);
+        }
+    }
+</code></pre>
+<h4 id="3343-带collection对象的构造函数">3.3.4.3 带Collection对象的构造函数</h4>
+<pre><code class="language-java">//1.将Collection对象转换成数组，然后将数组的地址赋值给elementData。
+//2.更新size的值，如果size的值等于0直接将内部空对象EMPTY_ELEMENTDATA的地址赋值给elementData。
+//3.如果size的值大于0，则执行Arrays.copy方法，把Collection对象的内容copy(可以理解为深拷贝)到elementData中，并且这些元素是按照该collection的迭代器返回它们的顺序排列的。
+public ArrayList(Collection&lt;? extends E&gt; c) {
+        elementData = c.toArray();
+        if ((size = elementData.length) != 0) {
+            // c.toArray might (incorrectly) not return Object[] (see 6260652)
+            if (elementData.getClass() != Object[].class)
+                elementData = Arrays.copyOf(elementData, size, Object[].class);
+        } else {
+            // replace with empty array.
+            this.elementData = EMPTY_ELEMENTDATA;
+        }
+    }
+</code></pre>
+<pre><code class="language-java"> 	//System.arraycopy方法：它就是从指定的源数组将元素中复制到目标数组，复制从指定的位置开始，到设定的复制长度结束，然后从目标数组的指定起始位置依次插入。
+
+	// src 源数组
+	// srcPos 源数组要复制的起始位置	
+	// dest 要赋值到的目标数组
+	// destPos 目标数组放置的起始位置
+	// length 复制的长度
+	// 使用了native关键字，说明调用的是其他语言写的底层函数
+    public static native void arraycopy(Object src,  int  srcPos,
+                                        Object dest, int destPos,
+                                        int length);
+</code></pre>
+<pre><code class="language-java">  //Arrays.copyOf方法：它新建了一个数组并且将原数组的内容拷贝到长度为newLength的新数组中，并且返回该新数组。
+
+	// original 要复制的数组
+	// newLength 要返回副本的长度
+	// newwType 要返回的副本类型
+	// 内部调用了System.arraycopy方法
+    public static &lt;T,U&gt; T[] copyOf(U[] original, int newLength, Class&lt;? extends T[]&gt; newType) {
+        @SuppressWarnings(&quot;unchecked&quot;)
+        T[] copy = ((Object)newType == (Object)Object[].class)
+            ? (T[]) new Object[newLength]
+            : (T[]) Array.newInstance(newType.getComponentType(), newLength);
+        System.arraycopy(original, 0, copy, 0,
+                         Math.min(original.length, newLength));
+        return copy;
+    }
+</code></pre>
+<blockquote>
+<p>System.arraycopy()与Arrays.copyof()区别</p>
+<ol>
+<li>System.arraycopy需要目标数组，将原数组拷贝到你自己定义的数值里，而且可以选择拷贝的起点和长度以及放入新数组中的位置。</li>
+<li>Arrays.copyof是系统自动在内部新建一个数组，调用System.arraycopy将原数组的内容拷贝到长度为newLength的新数组中，并返回新建的数组。</li>
+</ol>
+</blockquote>
+<h4 id="3344-添加元素">3.3.4.4 添加元素</h4>
+<h5 id="adde-e方法">add(E e)方法</h5>
+<pre><code class="language-java">//官方解释：将指定的元素追加到列表（elementData）的末尾
+    public boolean add(E e) {
+        ensureCapacityInternal(size + 1);  // Increments modCount!!
+        elementData[size++] = e;
+        return true;
+    }
+</code></pre>
+<pre><code class="language-java">    //参数值实际是size+1
+	private void ensureCapacityInternal(int minCapacity) {
+        ensureExplicitCapacity(calculateCapacity(elementData, minCapacity));
+    }
+</code></pre>
+<pre><code class="language-java"> //这个方式是判断当前数组是否是个空数组，如果是就返回默认长度10，否则就返回size+1;也就是说如果你是用无参构造函数初始化ArrayList，那么在第一次调用add方法时，默认长度会变成10
+  private static int calculateCapacity(Object[] elementData, int minCapacity) {
+        if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
+            return Math.max(DEFAULT_CAPACITY, minCapacity);
+        }
+        return minCapacity;
+    }
+</code></pre>
+<pre><code class="language-java">    //这个方法首先将集合修改次数加1，然后判断数组的长度是否可以存入下一个元素，如果长度不够会调用grow方法进行扩容
+	private void ensureExplicitCapacity(int minCapacity) {
+        modCount++;
+
+        // overflow-conscious code
+        if (minCapacity - elementData.length &gt; 0)
+            grow(minCapacity);
+    }
+</code></pre>
+<pre><code class="language-java">    //这个方法首先定义数组新的长度为原来数组长度的1.5倍，如果新长度减去所需数组的最小长度小于0，那么新长度就等于所需数组最小长度；再下面的判断是如果新长度大于MAX_ARRAY_SIZE(ArrayList内部定义MAX_ARRAY_SIZE的值是：2147483639)就调用hugeCapacity方法，最后调用Arrays.copyOf将扩容后的新数组地址赋值给elementData
+    private void grow(int minCapacity) {
+        // overflow-conscious code
+        int oldCapacity = elementData.length;
+        int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);
+        if (newCapacity - minCapacity &lt; 0)
+            newCapacity = minCapacity;
+        if (newCapacity - MAX_ARRAY_SIZE &gt; 0)
+            newCapacity = hugeCapacity(minCapacity);
+        // minCapacity is usually close to size, so this is a win:
+        elementData = Arrays.copyOf(elementData, newCapacity);
+    }
+</code></pre>
+<pre><code class="language-java">    //如果扩容长度超过MAX_ARRAY_SIZE，则设置长度为Integer.MAX_VALUE，但不是能百分百成功的，这取决于虚拟机。（如果我们可以在某些虚拟机上可以避免OutOfMemory，我们将另外分配Integer.MAX_VALUE，如果你很幸运（取决于虚拟机），我们将成功）
+    private static int hugeCapacity(int minCapacity) {
+        if (minCapacity &lt; 0) // overflow
+            throw new OutOfMemoryError();
+        return (minCapacity &gt; MAX_ARRAY_SIZE) ?
+            Integer.MAX_VALUE :
+            MAX_ARRAY_SIZE;
+    }
+</code></pre>
+<blockquote>
+<p>add总结：</p>
+<ol>
+<li>确保数组已使用长度（size）加1后可以存入下一个元素。</li>
+<li>修改次数modCount标识自增1，如果当前数组已使用长度+1后大于当前数组长度，则调用grow方法，扩容数组，grow方法会将当前数组的长度变为原来容量的1.5倍。</li>
+<li>确保新加的元素有地方存储后，则将新元素添加到位于size++的位置上。</li>
+<li>返回添加成功的布尔值。</li>
+</ol>
+</blockquote>
+<h5 id="addint-index-e-element">add(int index, E element)</h5>
+<pre><code class="language-java">   //这个方法和上面的add类型，该方法可以按照元素的位置，指定新元素位置插入。
+
+	public void add(int index, E element) {
+        //判断索引位置是否正确
+        rangeCheckForAdd(index);
+		//扩容检测
+        ensureCapacityInternal(size + 1);  // Increments modCount!!
+        //对源数组进行复制处理（位移），从index + 1到size - index
+        //即向后移动位于当前位置和后面的元素
+        System.arraycopy(elementData, index, elementData, index + 1,
+                         size - index);
+        //在指定的位置赋值
+        elementData[index] = element;
+        size++;
+    }   
+</code></pre>
+<pre><code class="language-java">//该方法首先调用rangeCheckForAdd方法判断指定的位置小于当前数组的长度并且大于0，否则抛出异常。  
+
+	private void rangeCheckForAdd(int index) {
+        if (index &gt; size || index &lt; 0)
+            throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+    }
+</code></pre>
+<blockquote>
+<p>第二步调用的<strong>ensureCapacityInternal</strong>方法和上面的add方法逻辑一样。</p>
+<p>第三步调用<strong>System.arraycopy</strong>方法把<strong>指定下标以及后面的元素全部往后移一位</strong>。</p>
+<p>最后将新的元素放到指定位置（index）上，并将size+1。</p>
+</blockquote>
+<h5 id="addallcollection-extends-e-c">addAll(Collection&lt;? extends E&gt; c)</h5>
+<pre><code class="language-java">    //按照指定的Collection迭代器所返回的顺序，依次插入到列表尾部。
+    public boolean addAll(Collection&lt;? extends E&gt; c) {
+        // 将c转换为数组
+        Object[] a = c.toArray();
+        int numNew = a.length;
+        //扩容处理，大小为size + numNew
+        ensureCapacityInternal(size + numNew);  // Increments modCount
+        System.arraycopy(a, 0, elementData, size, numNew);
+        size += numNew;
+        return numNew != 0;
+    }
+</code></pre>
+<h5 id="setint-index-e-element">set(int index, E element)</h5>
+<pre><code class="language-java">    public E set(int index, E element) {
+        //判断插入位置是否正确，如果大于列表长度会抛出异常
+        rangeCheck(index);
+		//获取插入位置的当前元素
+        E oldValue = elementData(index);
+        //将新的元素替换当前插入位置的元素
+        elementData[index] = element;
+        //返回插入位置老的值
+        return oldValue;
+    }
+</code></pre>
+<h4 id="3345-删除元素">3.3.4.5 删除元素</h4>
+<h5 id="removeint-index">remove(int index)</h5>
+<pre><code class="language-java">   //移除指定位置上的元素
+	public E remove(int index) {
+        //判断删除位置是否正确，如果大于列表长度会抛出异常
+        rangeCheck(index);
+		//将集合修改次数加1
+        modCount++;
+        //获取当前删除位置上的元素
+        E oldValue = elementData(index);
+		//判断是否删除的是最后一个元素，如果不是将删除位置后的元素向左移numMoved个位置
+        int numMoved = size - index - 1;
+        if (numMoved &gt; 0)
+            System.arraycopy(elementData, index+1, elementData, index,
+                             numMoved);
+        //将列表最后的元素置为null，等待垃圾收集器收集
+        elementData[--size] = null; // clear to let GC do its work
+		//返回删除位置老的值
+        return oldValue;
+    }
+</code></pre>
+<h5 id="removeobject-o">remove(Object o)</h5>
+<pre><code class="language-java">    //移除指定元素
+	public boolean remove(Object o) {
+        //因为ArrayList允许存在null，所以需要进行null判断
+        if (o == null) {
+            for (int index = 0; index &lt; size; index++)
+                if (elementData[index] == null) {
+                    //移除这个位置的元素
+                    fastRemove(index);
+                    return true;
+                }
+        } else {
+            for (int index = 0; index &lt; size; index++)
+                if (o.equals(elementData[index])) {
+                    fastRemove(index);
+                    return true;
+                }
+        }
+        return false;
+    }
+</code></pre>
+<pre><code class="language-java">    private void fastRemove(int index) {
+		//将集合修改次数加1      
+        modCount++;
+        //判断是否删除的是最后一个元素，如果不是将删除位置后的元素向左移numMoved个位置
+        int numMoved = size - index - 1;
+        if (numMoved &gt; 0)
+            System.arraycopy(elementData, index+1, elementData, index,
+                             numMoved);
+        //将列表最后的元素置为null，等待垃圾收集器收集
+        elementData[--size] = null; // clear to let GC do its work
+    }
+</code></pre>
+<h5 id="removeallcollection-c">removeAll(Collection&lt;?&gt; c)</h5>
+<pre><code class="language-java">    public boolean removeAll(Collection&lt;?&gt; c) {
+        //进行判断，如果c为null抛出异常
+        Objects.requireNonNull(c);
+        return batchRemove(c, false);
+    }
+</code></pre>
+<pre><code class="language-java">    private boolean batchRemove(Collection&lt;?&gt; c, boolean complement) {
+        final Object[] elementData = this.elementData;
+        int r = 0, w = 0;
+        boolean modified = false;
+        try {
+            //遍历数组，并检查这个集合是否包含对应的值，移动要保留的值到数组前面，w最后值为要保留的元素的数量
+            //若保留，就将相同的元素移动到前段；不删除，就将不同元素移动到前段
+            for (; r &lt; size; r++)
+                if (c.contains(elementData[r]) == complement)
+                    elementData[w++] = elementData[r];
+        } finally {
+            // 确保异常抛出前的部分可以完成期望的操作，而被遍历的部分会被接到后面
+            //r不等于size表示可能出错了
+            if (r != size) {
+                System.arraycopy(elementData, r,
+                                 elementData, w,
+                                 size - r);
+                w += size - r;
+            }
+            //如果w等于size，表示全部元素都保留了，所以也就没有删除操作发生，所以会返回false；反之，返回true，并更改数组
+            //而w不等于size的时候，即使try块抛出异常，也能正确处理异常抛出前的操作，因为w始终为要保留的前段部分的长度，数组也不会因此乱序
+            if (w != size) {
+                // clear to let GC do its work
+                for (int i = w; i &lt; size; i++)
+                    elementData[i] = null;
+                modCount += size - w;
+                size = w;
+                modified = true;
+            }
+        }
+        return modified;
+    }
+</code></pre>
+<h4 id="3346-查找元素">3.3.4.6 查找元素</h4>
+<pre><code class="language-java">    //ArrayList提供了get(int index)用读取ArrayList中的元素。由于ArrayList是动态数组，所以我们完全可以根据下标来获取ArrayList中的元素，而且速度还比较快
+	public E get(int index) {
+        //判断删除位置是否正确，如果大于列表长度会抛出异常
+        rangeCheck(index);
+		//直接返回列表中下标等于index的元素
+        return elementData(index);
+    }
+</code></pre>
+<h4 id="3345-判断元素是否在集合中">3.3.4.5 判断元素是否在集合中</h4>
+<pre><code class="language-java">//contains方法会遍历ArrayList。
+public boolean contains(Object o) {
+    	//调用indexOf方法判断需要查找的元素在列表中的下标是否大于等于0，小于0则不存在
+        return indexOf(o) &gt;= 0;
+    }
+</code></pre>
+<pre><code class="language-java">    public int indexOf(Object o) {
+        //因为ArrayList允许存在null，所以需要进行null判断
+        if (o == null) {
+           	//遍历列表，如果列表存在null值的元素，直接返回其下标位置
+            for (int i = 0; i &lt; size; i++)
+                if (elementData[i]==null)
+                    return i;
+        } else {
+            //遍历列表，使用equals判断是否有相等的元素，有的话直接返回其下标位置
+            for (int i = 0; i &lt; size; i++)
+                if (o.equals(elementData[i]))
+                    return i;
+        }
+        //列表中不能存在传进来的元素，返回-1
+        return -1;
+    }
+</code></pre>
+<h4 id="3346-最小化arraylist的实际存储量">3.3.4.6 最小化ArrayList的实际存储量</h4>
+<pre><code class="language-java">   //ArrayList提供了trimToSize()方法用于将底层数组的容量调整为当前列表保存的实际元素的大小
+	public void trimToSize() {
+        //将集合修改次数加1
+        modCount++;
+        //如果当前ArrayList的实际长度小于列表的长度，将列表超过size后的空余的空间（包括null值）去除，调用Arrays.cppyof方法拷贝elementData，长度为size
+        if (size &lt; elementData.length) {
+            elementData = (size == 0)
+              ? EMPTY_ELEMENTDATA
+              : Arrays.copyOf(elementData, size);
+        }
+    }
+</code></pre>
+<h4 id="3347截取arraylist的内容">3.3.4.7截取ArrayList的内容</h4>
+<pre><code class="language-java">    //可以从源码中看到其实是创建了一个SubList的内部对象，可以理解为是返回当前ArrayList的部分视图，其实指向的存放数据的还是一个地方。如果修改了subList返回的内容的话，原来的内容也会被修改。
+	public List&lt;E&gt; subList(int fromIndex, int toIndex) {
+        //检查需要截取的下标位置是否正确
+        subListRangeCheck(fromIndex, toIndex, size);
+        return new SubList(this, 0, fromIndex, toIndex);
+    }
+</code></pre>
+<h4 id="3348-其他方法">3.3.4.8 其他方法</h4>
+<pre><code class="language-java">    //判断ArrayList是否为空
+    public boolean isEmpty() {
+        return size == 0;
+    }
+
+	//反向查找元素位置，与上述的indexOf相反
+    public int lastIndexOf(Object o) {
+        if (o == null) {
+            for (int i = size-1; i &gt;= 0; i--)
+                if (elementData[i]==null)
+                    return i;
+        } else {
+            for (int i = size-1; i &gt;= 0; i--)
+                if (o.equals(elementData[i]))
+                    return i;
+        }
+        return -1;
+    }
+
+	//将元素全部拷贝到v中
+    public Object clone() {
+        try {
+            ArrayList&lt;?&gt; v = (ArrayList&lt;?&gt;) super.clone();
+            v.elementData = Arrays.copyOf(elementData, size);
+            v.modCount = 0;
+            return v;
+        } catch (CloneNotSupportedException e) {
+            // this shouldn't happen, since we are Cloneable
+            throw new InternalError(e);
+        }
+    }
+
+	//返回ArrayList拷贝后的Object数组
+ 	public Object[] toArray() {
+        return Arrays.copyOf(elementData, size);
+    }
+
+	//返回ArrayList的模板数组。所谓模板数组，即可将T设置为任意数据类型
+    public &lt;T&gt; T[] toArray(T[] a) {
+        //若a的长度小于ArrayList中的元素个数，返回拷贝了ArrayList中全部元素的新数组
+        if (a.length &lt; size)
+            // Make a new array of a's runtime type, but my contents:
+            return (T[]) Arrays.copyOf(elementData, size, a.getClass());
+        //若a的长度大于等于ArrayList中的元素个数，则将ArrayList中的元素全部拷贝到a中
+        System.arraycopy(elementData, 0, a, 0, size);
+        if (a.length &gt; size)
+            a[size] = null;
+        return a;
+    }
+
+	//将ArrayList中的元素写入到输入流中，先写容量，在写元素
+    private void writeObject(java.io.ObjectOutputStream s)
+        throws java.io.IOException{
+        // Write out element count, and any hidden stuff
+        int expectedModCount = modCount;
+        s.defaultWriteObject();
+
+        // Write out size as capacity for behavioural compatibility with clone()
+        s.writeInt(size);
+
+        // Write out all elements in the proper order.
+        for (int i=0; i&lt;size; i++) {
+            s.writeObject(elementData[i]);
+        }
+
+        if (modCount != expectedModCount) {
+            throw new ConcurrentModificationException();
+        }
+    }
+
+	//从输入流中读取数据到elementData中，一样是先读容量，再读数据
+    private void readObject(java.io.ObjectInputStream s)
+        throws java.io.IOException, ClassNotFoundException {
+        elementData = EMPTY_ELEMENTDATA;
+
+        // Read in size, and any hidden stuff
+        s.defaultReadObject();
+
+        // Read in capacity
+        s.readInt(); // ignored
+
+        if (size &gt; 0) {
+            // be like clone(), allocate array based upon size not capacity
+            int capacity = calculateCapacity(elementData, size);
+            SharedSecrets.getJavaOISAccess().checkArray(s, Object[].class, capacity);
+            ensureCapacityInternal(size);
+
+            Object[] a = elementData;
+            // Read in all elements in the proper order.
+            for (int i=0; i&lt;size; i++) {
+                a[i] = s.readObject();
+            }
+        }
+    }
+</code></pre>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[LinkedList]]></title>
+        <id>https://CatearMax.github.io/post/linkedlist/</id>
+        <link href="https://CatearMax.github.io/post/linkedlist/">
+        </link>
+        <updated>2023-06-26T02:41:10.000Z</updated>
+        <content type="html"><![CDATA[<h3 id="321简单介绍">3.2.1简单介绍</h3>
+<blockquote>
+<ol>
+<li><code>LinkedList</code>是一个继承于<code>AbstractSequentialList</code>的双向链表。它也可以被当做<strong>堆栈、队列或双端队列</strong>进行使用。</li>
+<li><code>LinkedList</code>实现<code>List</code>接口，能让它进行<strong>队列</strong>操作。</li>
+<li><code>LinkedList</code>实现<code>Deque</code>接口，即能将<code>LinkedList</code>当做<strong>双端队列</strong>使用。</li>
+<li><code>LinkedList</code>实现<code>Cloneable</code>，即覆盖了函数<code>clone()</code>，<strong>能被克隆</strong>。</li>
+<li><code>LinkedList</code>实现了<code>java.io.Serializable</code>接口，这意味着<code>LinkedList</code><strong>支持序列化</strong>，能通过序列化去传输。</li>
+<li><code>LinkedList</code>中的操作<strong>不是线程安全</strong>的。</li>
+</ol>
+</blockquote>
+<figure data-type="image" tabindex="1"><a href="https://imgse.com/i/pCUnI6H"><img src="https://s1.ax1x.com/2023/06/26/pCUnI6H.png" alt="pCUnI6H.png" loading="lazy"></a></figure>
+<h3 id="322属性">3.2.2属性</h3>
+<pre><code class="language-java">//链表节点的个数
+transient int size = 0;
+//链表首节点
+transient Node&lt;E&gt; first;
+//链表尾节点
+transient Node&lt;E&gt; last;
+</code></pre>
+<pre><code class="language-java">//内部静态类
+private static class Node&lt;E&gt; {
+    //当前节点元素值
+    E item;
+    //下一个节点
+    Node&lt;E&gt; next;
+    //上一个节点
+    Node&lt;E&gt; prev;
+
+    Node(Node&lt;E&gt; prev, E element, Node&lt;E&gt; next) {
+        this.item = element;
+        this.next = next;
+        this.prev = prev;
+    }
+}
+</code></pre>
+<h3 id="323构造函数">3.2.3构造函数</h3>
+<h4 id="3231无参构造">3.2.3.1无参构造</h4>
+<pre><code class="language-java">//如果不传入参数，则使用默认构造方法创建LinkedList对象 此时创建的是一个空的链表。
+public LinkedList() {
+}
+</code></pre>
+<h4 id="3232有参构造">3.2.3.2有参构造</h4>
+<pre><code class="language-java">//首先会调用无参数的构造方法，然后调用addAll方法将集合内元素全部加入到链表中。
+public LinkedList(Collection&lt;? extends E&gt; c) {
+    this();
+    addAll(c);
+}
+</code></pre>
+<blockquote>
+<p>从上述的俩个构造方法可以看出LinkedList是一个<strong>无界链表</strong>，<strong>不存在容量不足</strong>的问题。</p>
+</blockquote>
+<h3 id="324-添加元素">3.2.4 添加元素</h3>
+<blockquote>
+<p>LinkedList主要提供<code>addFirst</code>、<code>addLast</code>、<code>add</code>、<code>addAll</code>等方法来实现元素的添加。</p>
+</blockquote>
+<h4 id="3241-addfirst">3.2.4.1 addFirst</h4>
+<pre><code class="language-java">//在链表首部添加元素
+public void addFirst(E e) {
+    linkFirst(e);
+}
+</code></pre>
+<pre><code class="language-java">private void linkFirst(E e) {
+    //将内部保存的首节点点赋值给f
+    final Node&lt;E&gt; f = first;
+    //创建新节点，新节点的next节点是当前的首节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(null, e, f);
+    //把新节点作为新的首节点
+    first = newNode;
+    //判断是否是第一个添加的元素
+    //如果是将新节点赋值给last
+    //如果不是把原首节点的prev设置为新节点
+    if (f == null)
+        last = newNode;
+    else
+        f.prev = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3242-addlast">3.2.4.2 addLast</h4>
+<pre><code class="language-java">//在链表尾部添加元素
+public void addLast(E e) {
+    linkLast(e);
+}
+</code></pre>
+<pre><code class="language-java">void linkLast(E e) {
+    //将内部保存的尾节点赋值给l
+    final Node&lt;E&gt; l = last;
+    //创建新节点，新节点的prev节点是当前的尾节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(l, e, null);
+    //把新节点作为新的尾节点
+    last = newNode;
+    //判断是否是第一个添加的元素
+    //如果是将新节点赋值给first
+    //如果不是把原首节点的next设置为新节点
+    if (l == null)
+        first = newNode;
+    else
+        l.next = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3243-add">3.2.4.3 add</h4>
+<pre><code class="language-java">//该方法和addLast方差不多，因为是无界的，所以添加元素总是会成功
+public boolean add(E e) {
+    linkLast(e);
+    return true;
+}
+</code></pre>
+<pre><code class="language-java">//该方法和上面add方法的区别是，该方法可以指定位置插入元素
+public void add(int index, E element) {
+    //判断是否越界
+    checkPositionIndex(index);
+    //如果index等于链表节点个数，就将元素添加到俩表尾部，否则调用linkBefore方法
+    if (index == size)
+        linkLast(element);
+    else
+        linkBefore(element, node(index));
+}
+</code></pre>
+<pre><code class="language-java">//获取指定位置的节点
+Node&lt;E&gt; node(int index) {
+    //如果index小于size的一半，就从首节点开始遍历，一直获取x的下一个节点
+    //如果index大于或等于size的一半，就从尾节点开始遍历，一直获取x的上一个节点
+    if (index &lt; (size &gt;&gt; 1)) {
+        Node&lt;E&gt; x = first;
+        for (int i = 0; i &lt; index; i++)
+            x = x.next;
+        return x;
+    } else {
+        Node&lt;E&gt; x = last;
+        for (int i = size - 1; i &gt; index; i--)
+            x = x.prev;
+        return x;
+    }
+}
+</code></pre>
+<pre><code class="language-java">//将元素插入到指定节点前
+void linkBefore(E e, Node&lt;E&gt; succ) {
+    assert succ != null;
+    //拿到succ的上一节点
+    final Node&lt;E&gt; pred = succ.prev;
+    //创建新节点
+    final Node&lt;E&gt; newNode = new Node&lt;&gt;(pred, e, succ);
+    //将新节点作为succ的上一节点
+    succ.prev = newNode;
+    //判断succ是否是首节点
+    //如果是将新节点作为新的首节点
+    //如果不是将新节点作为pred的下一节点
+    if (pred == null)
+        first = newNode;
+    else
+        pred.next = newNode;
+    //更新链表节点个数
+    size++;
+    //将集合修改次数加1
+    modCount++;
+}
+</code></pre>
+<h4 id="3244-addall">3.2.4.4 addAll</h4>
+<pre><code class="language-java">//将集合内的元素依次插入index位置后
+public boolean addAll(int index, Collection&lt;? extends E&gt; c) {
+    //判断是否越界
+    checkPositionIndex(index);
+    //将集合转换为数组
+    Object[] a = c.toArray();
+    int numNew = a.length;
+    //判断数组长度是否为0，为0直接返回false
+    if (numNew == 0)
+        return false;
+    //pred上一个节点，succ当前节点
+    Node&lt;E&gt; pred, succ;
+    //判断index位置是否等于链表元素个数
+    //如果等于succ赋值为null，pred赋值为当前链表尾节点last
+    //如果不等于succ赋值为index位置的节点，pred赋值为succ的上一个节点
+    if (index == size) {
+        succ = null;
+        pred = last;
+    } else {
+        succ = node(index);
+        pred = succ.prev;
+    }
+    //循环数组
+    for (Object o : a) {
+        E e = (E) o;
+        //创建新节点
+        Node&lt;E&gt; newNode = new Node&lt;&gt;(pred, e, null);
+        //如果上一个节点为null，把新节点作为新的首节点，否则pred的下一个节点为新节点
+        if (pred == null)
+            first = newNode;
+        else
+            pred.next = newNode;
+        //把新节点赋值给上一个节点
+        pred = newNode;
+    }
+    //如果index位置的节点为null，把pred作业尾节点
+    //如果不为null，pred的下一节点为index位置的节点，succ的上一节点为pred
+    if (succ == null) {
+        last = pred;
+    } else {
+        pred.next = succ;
+        succ.prev = pred;
+    }
+    //更新链表节点个数
+    size += numNew;
+    //将集合修改次数加1
+    modCount++;
+    //因为是无界的，所以添加元素总是会成功
+    return true;
+}
+</code></pre>
+<blockquote>
+<p>看到上面这么多种方式添加元素，其实本质只是三种方式，在链表的首部、尾部、中间位置添加元素。</p>
+<p>在链表首尾添加元素很高效，在中间添加元素比较低效，首先要找到插入位置的节点，在修改前后节点的指针。</p>
+</blockquote>
+<h3 id="325删除元素">3.2.5删除元素</h3>
+<h4 id="3251-remove">3.2.5.1 remove</h4>
+<pre><code class="language-java">//删除指定元素
+public boolean remove(Object o) {
+    //因为LinkedList允许存在null，所以需要进行null判断
+    if (o == null) {
+        //从首节点开始遍历
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (x.item == null) {
+                //调用unlink方法删除指定节点
+                unlink(x);
+                return true;
+            }
+        }
+    } else {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (o.equals(x.item)) {
+                unlink(x);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+</code></pre>
+<pre><code class="language-java">//删除指定节点
+E unlink(Node&lt;E&gt; x) {
+    //获取x节点的元素，以及它上一个节点，和下一个节点
+    final E element = x.item;
+    final Node&lt;E&gt; next = x.next;
+    final Node&lt;E&gt; prev = x.prev;
+    //如果x的上一个节点为null，说明是首节点，将x的下一个节点设置为新的首节点
+    //否则将x的上一节点设置为next，将x的上一节点设为null
+    if (prev == null) {
+        first = next;
+    } else {
+        prev.next = next;
+        x.prev = null;
+    }
+    //如果x的下一节点为null，说明是尾节点，将x的上一节点设置新的尾节点
+    //否则将x的上一节点设置x的上一节点，将x的下一节点设为null
+    if (next == null) {
+        last = prev;
+    } else {
+        next.prev = prev;
+        x.next = null;
+    }
+    //将x节点的元素值设为null，等待垃圾收集器收集
+    x.item = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<pre><code class="language-java">//删除指定位置的节点，其实和上面的方法差不多
+//通过node方法获得指定位置的节点，再通过unlink方法删除
+public E remove(int index) {
+    checkElementIndex(index);
+    return unlink(node(index));
+}
+</code></pre>
+<h4 id="3252-removefirst">3.2.5.2 removeFirst</h4>
+<pre><code class="language-java">//删除首节点
+public E remove() {
+    return removeFirst();
+}
+</code></pre>
+<pre><code class="language-java">//删除首节点
+public E removeFirst() {
+    final Node&lt;E&gt; f = first;
+    //如果首节点为null，说明是空链表，抛出异常
+    if (f == null)
+        throw new NoSuchElementException();
+    return unlinkFirst(f);
+}
+</code></pre>
+<pre><code class="language-java">//删除首节点
+private E unlinkFirst(Node&lt;E&gt; f) {
+    //首节点的元素值
+    final E element = f.item;
+    //首节点的下一节点
+    final Node&lt;E&gt; next = f.next;
+    //将首节点的元素值和下一节点设为null，等待垃圾收集器收集
+    f.item = null;
+    f.next = null; // help GC
+    //将next设置为新的首节点
+    first = next;
+    //如果next为null，说明说明链表中只有一个节点，把last也设为null
+    //否则把next的上一节点设为null
+    if (next == null)
+        last = null;
+    else
+        next.prev = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<h4 id="3253-removelast">3.2.5.3 removeLast</h4>
+<pre><code class="language-java">//删除尾节点
+public E removeLast() {
+    final Node&lt;E&gt; l = last;
+    //如果首节点为null，说明是空链表，抛出异常
+    if (l == null)
+        throw new NoSuchElementException();
+    return unlinkLast(l);
+}
+</code></pre>
+<pre><code class="language-java">private E unlinkLast(Node&lt;E&gt; l) {
+    //尾节点的元素值
+    final E element = l.item;
+    //尾节点的上一节点
+    final Node&lt;E&gt; prev = l.prev;
+    //将尾节点的元素值和上一节点设为null，等待垃圾收集器收集
+    l.item = null;
+    l.prev = null; // help GC
+    //将prev设置新的尾节点
+    last = prev;
+    //如果prev为null，说明说明链表中只有一个节点，把first也设为null
+    //否则把prev的下一节点设为null
+    if (prev == null)
+        first = null;
+    else
+        prev.next = null;
+    //链表节点个数减1
+    size--;
+    //将集合修改次数加1
+    modCount++;
+    //返回删除节点的元素值
+    return element;
+}
+</code></pre>
+<blockquote>
+<p>删除和添加一样，其实本质只有三种方式，即删除首部、尾部、中间节点。</p>
+<p>和添加一样，首尾删除很高效，删除中间元素比较低效要先找到节点位置，再修改前后指针。</p>
+</blockquote>
+<h3 id="326获取元素">3.2.6获取元素</h3>
+<h4 id="3261-get">3.2.6.1 get</h4>
+<pre><code class="language-java">//获取指定位置的元素值
+public E get(int index) {
+    //判断是否越界
+    checkElementIndex(index);
+    //直接调用node方法获取指定位置的节点，并反回其元素值
+    return node(index).item;
+}
+</code></pre>
+<h4 id="3262-getfirst">3.2.6.2 getFirst</h4>
+<pre><code class="language-java">//获取链表首节点的元素值
+public E getFirst() {
+    final Node&lt;E&gt; f = first;
+    //判断是否是空链表，如果是抛出异常，否则直接返回首节点的元素值
+    if (f == null)
+        throw new NoSuchElementException();
+    return f.item;
+}
+</code></pre>
+<h4 id="3263-getlast">3.2.6.3 getLast</h4>
+<pre><code class="language-java">//获取链表尾节点的元素值
+public E getLast() {
+    final Node&lt;E&gt; l = last;
+    //判断是否是空链表，如果是抛出异常，否则直接返回尾节点的元素值
+    if (l == null)
+        throw new NoSuchElementException();
+    return l.item;
+}
+</code></pre>
+<h4 id="327-更新指定节点的元素值">3.2.7 更新指定节点的元素值</h4>
+<pre><code class="language-java">public E set(int index, E element) {
+    //判断是否越界
+    checkElementIndex(index);
+    //指定位置的节点
+    Node&lt;E&gt; x = node(index);
+    E oldVal = x.item;
+    //设置新值
+    x.item = element;
+    //返回老值
+    return oldVal;
+}
+</code></pre>
+<h3 id="328-队列">3.2.8 队列</h3>
+<pre><code class="language-java">//获取队列的第一个元素，如果为null会返回null
+public E peek() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : f.item;
+}
+
+//获取队列的第一个元素，如果为null会抛出异常
+public E element() {
+    return getFirst();
+}
+
+//获取队列的第一个元素，如果为null会返回null
+public E poll() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+
+//获取队列的第一个元素，如果为null会抛出异常
+public E remove() {
+    return removeFirst();
+}
+
+//将元素添加到队列尾部
+public boolean offer(E e) {
+    return add(e);
+}
+</code></pre>
+<h3 id="329-双向队列">3.2.9 双向队列</h3>
+<pre><code class="language-java">//将元素添加到首
+public boolean offerFirst(E e) {
+    addFirst(e);
+    return true;
+}
+	
+//将元素添加到尾部
+public boolean offerLast(E e) {
+    addLast(e);
+    return true;
+}
+
+//获取首部的元素值
+public E peekFirst() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : f.item;
+}
+
+//获取尾部的元素值
+public E peekLast() {
+    final Node&lt;E&gt; l = last;
+    return (l == null) ? null : l.item;
+}
+
+//删除首部，如果为null会返回null
+public E pollFirst() {
+    final Node&lt;E&gt; f = first;
+    return (f == null) ? null : unlinkFirst(f);
+}
+
+//删除尾部，如果为null会返回null
+public E pollLast() {
+    final Node&lt;E&gt; l = last;
+    return (l == null) ? null : unlinkLast(l);
+}
+
+//将元素添加到首部
+public void push(E e) {
+    addFirst(e);
+}
+
+//删除首部，如果为null会抛出异常
+public E pop() {
+    return removeFirst();
+}
+
+//删除链表中元素值等于o的第一个节点，其实和remove方法是一样的，因为内部还是调用的remove方法
+public boolean removeFirstOccurrence(Object o) {
+    return remove(o);
+}
+
+//删除链表中元素值等于o的最后一个节点
+public boolean removeLastOccurrence(Object o) {
+    //因为LinkedList允许存在null，所以需要进行null判断
+    if (o == null) {
+        //和remove方法的区别它是从尾节点往前遍历
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            if (x.item == null) {
+                //调用unlink方法删除指定节点
+                unlink(x);
+                return true;
+            }
+        }
+    } else {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            if (o.equals(x.item)) {
+                unlink(x);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+</code></pre>
+<h3 id="3210-其他api">3.2.10 其他api</h3>
+<pre><code class="language-java">//判断元素是否存在于链表中
+public boolean contains(Object o) {
+    return indexOf(o) != -1;
+}
+	
+//从前往后查找返回节点元素值等于o的位置，不存在返回-1
+public int indexOf(Object o) {
+    int index = 0;
+    if (o == null) {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (x.item == null)
+                return index;
+            index++;
+        }
+    } else {
+        for (Node&lt;E&gt; x = first; x != null; x = x.next) {
+            if (o.equals(x.item))
+                return index;
+            index++;
+        }
+    }
+    return -1;
+}
+
+//该方法和上面indexOf方法相反，它是从后往前查找返回节点元素值等于o的位置，不存在返回-1
+public int lastIndexOf(Object o) {
+    int index = size;
+    if (o == null) {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            index--;
+            if (x.item == null)
+                return index;
+        }
+    } else {
+        for (Node&lt;E&gt; x = last; x != null; x = x.prev) {
+            index--;
+            if (o.equals(x.item))
+                return index;
+        }
+    }
+    return -1;
+}
+
+//克隆函数，返回LinkedList的克隆对象
+public Object clone() {
+    LinkedList&lt;E&gt; clone = superClone();
+
+    // 将新建LinkedList置于最初状态
+    clone.first = clone.last = null;
+    clone.size = 0;
+    clone.modCount = 0;
+
+    // 将链表中所有节点的数据都添加到克隆对象中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        clone.add(x.item);
+
+    return clone;
+}
+
+//返回LinkedList节点单元素值的Object数组
+public Object[] toArray() {
+    Object[] result = new Object[size];
+    int i = 0;
+    //将链表中所有节点的元素值添加到object数组中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        result[i++] = x.item;
+    return result;
+}
+
+// 返回LinkedList的模板数组。所谓模板数组，即可以将T设为任意的数据类型
+public &lt;T&gt; T[] toArray(T[] a) {
+    //如果a的长度小于LinkedList节点个数，说明a不能容纳LinkedList的所有节点元素值
+    //则新建一个数组，数组大小为LinkedList节点个数，并赋值给a
+    if (a.length &lt; size)
+        a = (T[])java.lang.reflect.Array.newInstance(
+                                a.getClass().getComponentType(), size);
+    int i = 0;
+    Object[] result = a;
+    // 将链表中所有节点的元素值都添加到数组a中
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        result[i++] = x.item;
+
+    if (a.length &gt; size)
+        a[size] = null;
+
+    return a;
+}
+
+//将LinkedList中的数据写入到输入流中，先写容量，再写数据
+private void writeObject(java.io.ObjectOutputStream s) throws java.io.IOException {
+    // Write out any hidden serialization magic
+    s.defaultWriteObject();
+
+    // Write out size
+        s.writeInt(size);
+
+    // Write out all elements in the proper order.
+    for (Node&lt;E&gt; x = first; x != null; x = x.next)
+        s.writeObject(x.item);
+}
+
+//从输入流中读取数据，一样是先读容量，再读数据
+private void readObject(java.io.ObjectInputStream s)
+    throws java.io.IOException, ClassNotFoundException {
+    // Read in any hidden serialization magic
+    s.defaultReadObject();
+
+    // Read in size
+    int size = s.readInt();
+    //从输入流中将元素值逐个添加到链表中
+    // Read in all elements in the proper order.
+    for (int i = 0; i &lt; size; i++)
+        linkLast((E)s.readObject());
+}
+</code></pre>
+<h2 id=""></h2>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[LocalDateTime]]></title>
+        <id>https://CatearMax.github.io/post/localdatetime/</id>
+        <link href="https://CatearMax.github.io/post/localdatetime/">
+        </link>
+        <updated>2023-06-26T02:37:42.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="为何不建议使用date">为何不建议使用Date？</h2>
+<blockquote>
+<ol>
+<li>Date类型的日期若不格式化，则阅读性非常差。例如：</li>
+</ol>
+<pre><code class="language-java">Tue Sep 10 09:34:04 CST 2019
+</code></pre>
+<ol start="2">
+<li>Date一般是使用<code>SimpleDateFormat</code>进行格式化日期，但<code>SimpleDateFormat</code>是线程不安全的 <code>SimpleDateFormat</code>的<code>format</code>方法最终调用代码：</li>
+</ol>
+<pre><code class="language-java">private StringBuffer format(Date date, StringBuffer toAppendTo,
+                                FieldDelegate delegate) {
+        // Convert input date to time field list
+		//该处会有线程安全问题
+        calendar.setTime(date);
+
+        boolean useDateFormatSymbols = useDateFormatSymbols();
+
+        for (int i = 0; i &lt; compiledPattern.length; ) {
+            int tag = compiledPattern[i] &gt;&gt;&gt; 8;
+            int count = compiledPattern[i++] &amp; 0xff;
+            if (count == 255) {
+                count = compiledPattern[i++] &lt;&lt; 16;
+                count |= compiledPattern[i++];
+            }
+
+            switch (tag) {
+            case TAG_QUOTE_ASCII_CHAR:
+                toAppendTo.append((char)count);
+                break;
+
+            case TAG_QUOTE_CHARS:
+                toAppendTo.append(compiledPattern, i, count);
+                i += count;
+                break;
+
+            default:
+                subFormat(tag, count, delegate, toAppendTo, useDateFormatSymbols);
+                break;
+            }
+        }
+        return toAppendTo;
+    }
+</code></pre>
+<p><code>calendar</code>在<code>SimpleDateFormat</code>中是全局共享变量，当多个线程同时使用<strong>相同的<code>SimpleDateFormat</code>对象</strong>【如用<code>static</code>修饰的<code>SimpleDateFormat</code>】调用<code>format</code>方法时，多个线程会同时调用<code>calendar.setTime</code>方法，可能一个线程刚设置好<code>time</code>值另外的一个线程马上把设置的<code>time</code>值给修改了导致返回的格式化时间可能是错误的。</p>
+<ol start="3">
+<li><code>SimpleDateFormat</code>中的<code>parse</code>方法也是线程不安全的，<code>parse</code>方法实际调用<code>calb.addYear(100).establish(calendar).getTime();</code>方法来解析，<code>alb.establish(calendar)</code>方法里主要完成了：</li>
+</ol>
+<ul>
+<li>重置日期对象cal的属性值</li>
+<li>使用calb中中属性设置cal</li>
+<li>返回设置好的cal对象</li>
+</ul>
+<p>但是这三步不是原子操作，多并发情况下也会造成线程安全问题。</p>
+<p><strong>多线程并发如何保证线程安全</strong>： 主要做的就是避免线程之间共享一个<code>SimpleDateFormat</code>对象：</p>
+<ul>
+<li>每个线程使用时都创建一次<code>SimpleDateFormat</code>对象 =&gt; 创建和销毁对象的开销大</li>
+<li>对使用<code>format</code>和<code>parse</code>方法的地方进行加锁 =&gt; 线程阻塞性能差 -</li>
+<li>使用<code>ThreadLocal</code>保证每个线程最多只创建一次<code>SimpleDateFormat</code>对象 =&gt; 较好的方法</li>
+</ul>
+<p>这么麻烦直接上Java8的LocalDate吧。</p>
+</blockquote>
+<h2 id="localdate">LocalDate</h2>
+<blockquote>
+<p>localDate只会获取<code>年月日</code></p>
+</blockquote>
+<blockquote>
+<ul>
+<li>创建<code>LocalDate</code></li>
+</ul>
+<pre><code class="language-java">	//获取当前年月日 2023-01-17
+	LocalDate localDate = LocalDate.now();
+	//构造指定的年月日 2019-09-10
+	LocalDate localDate1 = LocalDate.of(2019, 9, 10);
+</code></pre>
+<ul>
+<li>获取年、月、日、星期几</li>
+</ul>
+<pre><code class="language-java">		LocalDate localDate = LocalDate.of(2022, 12, 18);
+       //获取年份
+       int year = localDate.getYear();// 2022
+       int year1 = localDate.get(ChronoField.YEAR);// 2022
+       //获取月份
+       Month monthValue = localDate.getMonth();
+       int month = monthValue.getValue();// 12
+       int month2 = localDate.get(ChronoField.MONTH_OF_YEAR);// 12
+       //获取一年中的天数
+       int dayOfYear = localDate.getDayOfYear();// 352
+       int dayOfYear2 = localDate.get(ChronoField.DAY_OF_YEAR);// 352
+       //获取一月中的天数
+       int dayOfMonth = localDate.getDayOfMonth();// 18
+       int dayOfMonth2 = localDate.get(ChronoField.DAY_OF_MONTH);// 18
+       //获取一周中的天数
+       DayOfWeek dayOfWeekValue = localDate.getDayOfWeek();
+       int dayOfWeek = dayOfWeekValue.getValue();// 7
+       int dayOfWeek2 = localDate.get(ChronoField.DAY_OF_WEEK);// 7
+       //获取星期几
+       String week = dayOfWeekValue.name();// SUNDAY
+</code></pre>
+</blockquote>
+<h2 id="localtime">LocalTime</h2>
+<blockquote>
+<p>localTime只会获取<code>时分秒</code></p>
+</blockquote>
+<blockquote>
+<ul>
+<li>创建<code>LocalTime</code></li>
+</ul>
+<pre><code class="language-java">		LocalTime localTime = LocalTime.of(13, 51);//13:51
+       LocalTime localTime1 = LocalTime.of(13, 51, 10);//13:51:10
+       LocalTime localTime2 = LocalTime.now();//10:40:34.286
+</code></pre>
+<ul>
+<li>获取时分秒</li>
+</ul>
+<pre><code class="language-java">		LocalTime localTime = LocalTime.now();//默认带了纳秒数
+       //获取小时
+       int hour = localTime.getHour();// 10
+       int hour1 = localTime.get(ChronoField.HOUR_OF_DAY);// 10
+       //获取分钟
+       int minute = localTime.getMinute();// 45
+       int minute1 = localTime.get(ChronoField.MINUTE_OF_HOUR);// 45
+       //获取秒
+       int second = localTime.getSecond();// 38
+       int second1 = localTime.get(ChronoField.SECOND_OF_MINUTE);// 38
+       //获取纳秒
+       int nano = localTime.getNano();// 93000000
+       int nano1 = localTime.get(ChronoField.NANO_OF_SECOND);// 93000000
+</code></pre>
+</blockquote>
+<h2 id="localdatetime">LocalDateTime</h2>
+<blockquote>
+<p>localDateTime会获取<code>年月日时分秒</code>，相当于LocalDate + LocalTime</p>
+</blockquote>
+<blockquote>
+<ul>
+<li>创建<code>LocalDateTime</code></li>
+</ul>
+<pre><code class="language-java">		LocalDate localDate = LocalDate.now();
+       LocalTime localTime = LocalTime.now();
+       LocalDateTime localDateTime = LocalDateTime.now();
+		//2023-01-19T11:25:39.099
+       LocalDateTime localDateTime1 = LocalDateTime.of(2023, Month.JANUARY, 19, 11, 26, 56);
+		//2023-01-19T11:26:56
+       LocalDateTime localDateTime2 = LocalDateTime.of(localDate, localTime);
+		//2023-01-19T11:25:39.099
+       LocalDateTime localDateTime3 = localDate.atTime(localTime);
+		//2023-01-19T11:25:39.099
+       LocalDateTime localDateTime4 = localTime.atDate(localDate);
+</code></pre>
+<ul>
+<li>获取<code>LocalDate</code></li>
+</ul>
+<pre><code class="language-java">LocalDate localDate2 = localDateTime.toLocalDate();// 2023-01-19
+</code></pre>
+<ul>
+<li>获取<code>LocalTime</code></li>
+</ul>
+<pre><code class="language-java">LocalTime localTime2 = localDateTime.toLocalTime();// 11:25:39.099
+</code></pre>
+</blockquote>
+<h2 id="instant"><strong>Instant</strong></h2>
+<blockquote>
+<ul>
+<li>创建<code>Instant</code>对象</li>
+</ul>
+<pre><code class="language-java">Instant instant = Instant.now();
+</code></pre>
+<ul>
+<li>获取秒数</li>
+</ul>
+<pre><code class="language-java">long currentSecond = instant.getEpochSecond();
+</code></pre>
+<ul>
+<li>获取毫秒数</li>
+</ul>
+<pre><code class="language-java">long currentMilli = instant.toEpochMilli();
+</code></pre>
+<p>若只是为了获取秒数或者毫秒数，使用<code>System.currentTimeMillis()</code>来得更为方便</p>
+</blockquote>
+<h2 id="修改时间"><strong>修改时间</strong></h2>
+<blockquote>
+<p><code>LocalDate</code>、<code>LocalTime</code>、<code>LocalDateTime</code>、<code>Instant</code>为<strong>不可变对象</strong>，修改这些对象对象会<strong>返回一个副本</strong></p>
+</blockquote>
+<blockquote>
+<ul>
+<li>增加、减少年数、月数、天数等 以<code>LocalDateTime</code>为例</li>
+</ul>
+<pre><code class="language-java">		// 2023-7-19 14:46:56
+		LocalDateTime localDateTime = LocalDateTime.of(2023, Month.JULY, 19,
+               14, 46, 56);
+
+		//加一年 2024-7-19 14:46:56
+       localDateTime = localDateTime.plusYears(1);
+		//加一年 2025-7-19 14:46:56
+       localDateTime = localDateTime.plus(1, ChronoUnit.YEARS);
+		//减一月 2025-6-19 14:46:56
+       localDateTime = localDateTime.minusMonths(1);
+		//减一月 2025-5-19 14:46:56
+       localDateTime = localDateTime.minus(1,ChronoUnit.MONTHS);
+</code></pre>
+<ul>
+<li>通过<code>with</code>修改某些值</li>
+</ul>
+<pre><code class="language-java">	// 2023-07-19 14:46:56	
+	LocalDateTime localDateTime = LocalDateTime.of(2023, Month.JULY, 19,
+               14, 46, 56);
+
+       localDateTime = localDateTime.withYear(2024);// 2024-07-19 14:46:56
+       localDateTime = localDateTime.with(ChronoField.YEAR,2019);// 2019-07-19 14:46:56
+</code></pre>
+</blockquote>
+<h2 id="解析时间">解析时间</h2>
+<blockquote>
+<p><code>DateTimeFormatter</code>默认提供了多种格式化方式，如果默认提供的不能满足要求，可以通过<code>DateTimeFormatter</code>的<code>ofPattern</code>方法创建自定义格式化方式。</p>
+<pre><code class="language-java">LocalDate localDate = LocalDate.of(2019, 9, 10);
+// 20190910
+String s1 = localDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+// 2019-09-10
+String s2 = localDate.format(DateTimeFormatter.ISO_LOCAL_DATE);
+//自定义格式化
+DateTimeFormatter dateTimeFormatter =   DateTimeFormatter.ofPattern(&quot;dd/MM/yyyy&quot;);
+// 10/09/2019
+String s3 = localDate.format(dateTimeFormatter);
+</code></pre>
+<p>和<code>SimpleDateFormat</code>相比，<code>DateTimeFormatter</code>是线程安全的</p>
+</blockquote>
+<h2 id="实际使用">实际使用</h2>
+<blockquote>
+<ul>
+<li>将LocalDateTime字段以时间戳的方式返回给前端</li>
+</ul>
+<p>​		1. 添加日期转化类</p>
+<pre><code class="language-java">public class LocalDateTimeConverter extends JsonSerializer&lt;LocalDateTime&gt; {
+   @Override
+   public void serialize(LocalDateTime value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+   gen.writeNumber(value.toInstant(ZoneOffset.of(&quot;+8&quot;)).toEpochMilli());
+   }
+}
+</code></pre>
+<p>​				2. 并在<code>LocalDateTime</code>字段上添加<code>@JsonSerialize(using = LocalDateTimeConverter.class)</code>注解，如下：</p>
+<pre><code class="language-java">@JsonSerialize(using = LocalDateTimeConverter.class)
+protected LocalDateTime gmtModified;
+</code></pre>
+<ul>
+<li>将LocalDateTime字段以指定格式化日期的方式返回给前端</li>
+</ul>
+<p>在<code>LocalDateTime</code>字段上添加<code>@JsonFormat(shape=JsonFormat.Shape.STRING, pattern=&quot;yyyy-MM-dd HH:mm:ss&quot;)</code>注解即可，如下：</p>
+<pre><code class="language-java">@JsonFormat(shape=JsonFormat.Shape.STRING, pattern=&quot;yyyy-MM-dd HH:mm:ss&quot;)
+protected LocalDateTime gmtModified;
+</code></pre>
+<ul>
+<li>对前端传入的日期进行格式化</li>
+</ul>
+<p>在<code>LocalDateTime</code>字段上添加<code>@DateTimeFormat(pattern = &quot;yyyy-MM-dd HH:mm:ss&quot;)</code>注解即可，如下：</p>
+<pre><code class="language-java">@DateTimeFormat(pattern = &quot;yyyy-MM-dd HH:mm:ss&quot;)
+protected LocalDateTime gmtModified;
+</code></pre>
+</blockquote>
+]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[Java8函数式接口]]></title>
+        <id>https://CatearMax.github.io/post/java8-han-shu-shi-jie-kou/</id>
+        <link href="https://CatearMax.github.io/post/java8-han-shu-shi-jie-kou/">
+        </link>
+        <updated>2023-06-26T02:19:17.000Z</updated>
+        <content type="html"><![CDATA[<blockquote>
+<p>Java 8 引入了函数式接口，提供了一种新的方法定义和传递行为的方式。函数式接口是指只包含一个抽象方法的接口。这种接口的实例可以通过 Lambda 表达式、方法引用或构造函数引用来创建，让代码更加简洁和可读性更强</p>
+</blockquote>
+<h2 id="1常用接口">1.常用接口</h2>
+<p>​		Java 8中内置了许多常用的函数式接口。下面是一些常用的函数式接口及其用途：</p>
+<p>​			<strong>Predicate</strong>：接受一个输入参数，返回一个布尔值结果。</p>
+<p>​			<strong>Consumer</strong>：接受一个输入参数，不返回任何结果。</p>
+<p>​			<strong>Function&lt;T, R&gt;</strong>：接受一个输入参数，返回一个结果。</p>
+<p>​			<strong>Supplier</strong>：不接受任何输入参数，返回一个结果。</p>
+<h3 id="11-predicate">1.1 Predicate</h3>
+<p>​		Predicate 是一个函数式接口，它接受一个参数并返回一个布尔值。我们可以使用它来实现各种过滤器和检查器。</p>
+<p>​		例如，我们可以使用 Predicate 来过滤集合中的元素：</p>
+<pre><code class="language-java">			List&lt;String&gt; list = Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+            List&lt;String&gt; filteredList = list.stream()
+                .filter(str -&gt; str.startsWith(&quot;a&quot;))
+                .collect(Collectors.toList()); // 返回 [&quot;apple&quot;]
+</code></pre>
+<h3 id="22-function">2.2 Function</h3>
+<p>​		Function 是一个函数式接口，它接受一个参数并返回一个结果。我们可以使用它来进行各种转换和映射。</p>
+<p>​		例如，我们可以使用Function来映射集合中的元素：</p>
+<pre><code class="language-java">		List&lt;String&gt; list = Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+        List&lt;Integer&gt; lengths = list.stream()
+                .map(str -&gt; str.length())
+                .collect(Collectors.toList()); // 返回 [5, 6, 4, 6]
+</code></pre>
+<h3 id="23-consumer">2.3 Consumer</h3>
+<p>​		Consumer 是一个函数式接口，它接受一个参数并不返回任何结果。我们可以使用它来对一组元素进行操作。</p>
+<p>​		例如，我们也可以使用 Consumer 来对集合中的元素循环遍历进行操作：</p>
+<pre><code class="language-java">		List&lt;String&gt; list = Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+        list.forEach(str -&gt; System.out.println(str.toUpperCase())); // 输出 &quot;APPLE&quot;, &quot;BANANA&quot;, &quot;PEAR&quot;, &quot;ORANGE&quot;
+</code></pre>
+<h3 id="24-suppiler">2.4 Suppiler</h3>
+<p>​		Supplier 是一个函数式接口，它不接受任何参数，但返回一个结果。我们可以使用它来生成值。</p>
+<pre><code class="language-java">		Supplier&lt;List&lt;String&gt;&gt; defaultList = () -&gt; Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+        List&lt;String&gt; list = defaultList.get(); // 返回 [&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;]
+</code></pre>
+]]></content>
+    </entry>
+</feed>

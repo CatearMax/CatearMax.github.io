@@ -1,0 +1,395 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ThreadLocal | Gridea</title>
+<link rel="shortcut icon" href="https://CatearMax.github.io/favicon.ico?v=1689678765119">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://CatearMax.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="ThreadLocal | Gridea - Atom Feed" href="https://CatearMax.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="1. 简单介绍和举例
+​		ThreadLocal是本地线程变量，ThreadLocal中填充的变量属于当前线程，该变量对其他线程而言是隔离的。ThreadLocal为变量在每个线程中都创建了一个副本，那么每个线程可以访问自己内部的副本变量..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://CatearMax.github.io">
+  <img class="avatar" src="https://CatearMax.github.io/images/avatar.png?v=1689678765119" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              ThreadLocal
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-26
+              </span>
+              <span>
+                9 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h1 id="1-简单介绍和举例">1. 简单介绍和举例</h1>
+<p>​		ThreadLocal是本地线程变量，ThreadLocal中填充的变量属于<strong>当前</strong>线程，该变量对其他线程而言是隔离的。ThreadLocal为变量在每个线程中都创建了一个副本，那么每个线程可以访问自己内部的副本变量。</p>
+<p>​	举一个简单的例子</p>
+<pre><code class="language-java">		ThreadLocal&lt;Integer&gt; threadLocal = new ThreadLocal&lt;&gt;();
+        Thread t1 = new Thread(() -&gt; {
+            System.out.println(threadLocal.get());
+            threadLocal.set(1);
+            System.out.println(threadLocal.get());
+        });
+        Thread t2 = new Thread(() -&gt; {
+            System.out.println(threadLocal.get());
+            threadLocal.set(2);
+            System.out.println(threadLocal.get());
+        });
+        t1.start();
+        //主线程调用t1.join(),故主线程需要等到t1线程结束后再执行
+        t1.join();
+        t2.start();
+
+				//最后结果：
+				//null 1 null 2
+</code></pre>
+<p>可以看到，t1、t2两个线程对于线程变量是隔离的互不干扰。</p>
+<h1 id="2-原理">2. 原理</h1>
+<p>​		从如上例子知道threadLocal对于不同线程之前隔离，那么我们从源码查看为什么是隔离的。</p>
+<h2 id="21-线程隔离">2.1 线程隔离</h2>
+<pre><code class="language-java">ThreadLocal类:
+    public void set(T value) {
+      	//获取当前线程
+        Thread t = Thread.currentThread();
+      	//获取ThreadLocalMap对象
+        ThreadLocalMap map = getMap(t);
+        if (map != null) {
+          	//覆盖 以当前线程为key，
+            map.set(this, value);
+        } else {
+          	//初始化map
+            createMap(t, value);
+        }
+    }
+
+//返回当前线程的threadLocals属性
+    ThreadLocalMap getMap(Thread t) {
+            return t.threadLocals;
+        }
+//初始化map
+		void createMap(Thread t, T firstValue) {
+        t.threadLocals = new ThreadLocalMap(this, firstValue);
+    }
+
+Thread类:
+			ThreadLocal.ThreadLocalMap threadLocals = null;
+
+</code></pre>
+<p>​			其实到这里就明白了，ThreadLocal将我们需要保存的value保存到<strong>当前线程</strong>的threadLocals属性中，数据是存在自己线程Thread的threadLocals变量里面的，别人没办法拿到，从而实现了隔离。</p>
+<h2 id="22-threadlocalmap底层结构">2.2 ThreadLocalMap底层结构</h2>
+<p>​		ThreadLocalMap未实现Map接口，而且他的Entry是继承WeakReference（弱引用）的，也没有看到HashMap中的next，所以不存在链表了。</p>
+<pre><code class="language-java">ThreadLocal类：
+  		//一个内部类，可以看作一个map
+  		static class ThreadLocalMap {
+        //map中的Entry采用弱引用
+        static class Entry extends WeakReference&lt;ThreadLocal&lt;?&gt;&gt; {
+            /** The value associated with this ThreadLocal. */
+            Object value;
+
+            Entry(ThreadLocal&lt;?&gt; k, Object v) {
+                super(k);
+                value = v;
+            }
+        }
+        //省略
+      }
+</code></pre>
+<p>​		结构大致如下：</p>
+<figure data-type="image" tabindex="1"><img src="https://picx.zhimg.com/80/v2-539374b14bbd71707aca2d7ddfc6f691_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<h2 id="22-使用数组的原因和如何解决hash冲突">2.2 使用数组的原因和如何解决hash冲突</h2>
+<p>​		数组是因为我们开发过程中可以一个线程可以有多个TreadLocal来存放不同类型的对象的，但是他们都将放到你当前线程的ThreadLocalMap里，所以肯定要数组来存。</p>
+<p>​		hash冲突我们可以看源码：</p>
+<pre><code class="language-java">private void set(ThreadLocal&lt;?&gt; key, Object value) {
+           Entry[] tab = table;
+            int len = tab.length;
+            int i = key.threadLocalHashCode &amp; (len-1);
+            for (Entry e = tab[i];
+                 e != null;
+                 e = tab[i = nextIndex(i, len)]) {
+                ThreadLocal&lt;?&gt; k = e.get();
+
+                if (k == key) {
+                    e.value = value;
+                    return;
+                }
+                if (k == null) {
+                    replaceStaleEntry(key, value, i);
+                    return;
+                }
+            }
+            tab[i] = new Entry(key, value);
+            int sz = ++size;
+            if (!cleanSomeSlots(i, sz) &amp;&amp; sz &gt;= threshold)
+                rehash();
+        }
+</code></pre>
+<p>​		从源码里面看到ThreadLocalMap在存储的时候会给每一个ThreadLocal对象一个threadLocalHashCode，在插入过程中，根据ThreadLocal对象的<a href="https://www.zhihu.com/search?q=hash%E5%80%BC&amp;search_source=Entity&amp;hybrid_search_source=Entity&amp;hybrid_search_extra=%7B%22sourceType%22%3A%22answer%22%2C%22sourceId%22%3A1367225682%7D">hash值</a>，定位到table中的位置i，<strong>int i = key.threadLocalHashCode &amp; (len-1)</strong>。</p>
+<p>​		然后会判断一下：如果当前位置是空的，就初始化一个Entry对象放在位置i上；</p>
+<pre><code class="language-java">if (k == null) {
+    replaceStaleEntry(key, value, i);
+    return;
+}
+</code></pre>
+<p>​		如果位置i不为空，如果这个Entry对象的key正好是即将设置的key，那么就刷新Entry中的value；</p>
+<pre><code class="language-java">if (k == key) {
+    e.value = value;
+    return;
+}
+
+</code></pre>
+<p>​		如果位置i的不为空，而且key不等于entry，那就找下一个空位置，直到为空为止。</p>
+<figure data-type="image" tabindex="2"><img src="https://pic1.zhimg.com/80/v2-048025b3af136ea392b25ae31f4ad7e2_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>这样的话，在get的时候，也会根据ThreadLocal对象的hash值，定位到table中的位置，然后判断该位置Entry对象中的key是否和get的key一致，如果不一致，就判断下一个位置，set和get如果冲突严重的话，效率还是很低的。</p>
+<p>以下是get的源码，是不是就感觉很好懂了：</p>
+<pre><code class="language-java">作者：敖丙
+链接：https://www.zhihu.com/question/341005993/answer/1367225682
+来源：知乎
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+private Entry getEntry(ThreadLocal&lt;?&gt; key) {
+            int i = key.threadLocalHashCode &amp; (table.length - 1);
+            Entry e = table[i];
+            if (e != null &amp;&amp; e.get() == key)
+                return e;
+            else
+                return getEntryAfterMiss(key, i, e);
+        }
+
+ private Entry getEntryAfterMiss(ThreadLocal&lt;?&gt; key, int i, Entry e) {
+            Entry[] tab = table;
+            int len = tab.length;
+// get的时候一样是根据ThreadLocal获取到table的i值，然后查找数据拿到后会对比key是否相等  if (e != null &amp;&amp; e.get() == key)。
+            while (e != null) {
+                ThreadLocal&lt;?&gt; k = e.get();
+              // 相等就直接返回，不相等就继续查找，找到相等位置。
+                if (k == key)
+                    return e;
+                if (k == null)
+                    expungeStaleEntry(i);
+                else
+                    i = nextIndex(i, len);
+                e = tab[i];
+            }
+            return null;
+        }
+</code></pre>
+<h2 id="23-对象存放位置">2.3 对象存放位置</h2>
+<p>​		在Java中，栈内存归属于单个线程，每个线程都会有一个栈内存，其存储的变量只能在其所属线程中可见，即栈内存可以理解成线程的私有内存，而堆内存中的对象对所有线程可见，堆内存中的对象可以被所有线程访问。ThreadLocal实例实际上也是被其创建的类持有（更顶端应该是被线程持有），而ThreadLocal的值其实也是被线程实例持有，它们都是位于堆上，只是通过一些技巧将可见性修改成了线程可见。</p>
+<h2 id="24-threadlocalmap的弱引用">2.4 ThreadLocalMap的弱引用</h2>
+<p>​		ThreadLocal在保存的时候会把自己当做Key存在ThreadLocalMap中，正常情况应该是key和value都应该被外界强引用才对，但是现在key被设计成WeakReference弱引用了。</p>
+<figure data-type="image" tabindex="3"><img src="https://picx.zhimg.com/80/v2-48be8cfab9470e40079c68e04df7c88a_1440w.webp?source=1940ef5c" alt="img" loading="lazy"></figure>
+<p>弱引用概念：</p>
+<blockquote>
+<p>只具有弱引用的对象拥有更短暂的生命周期，在垃圾回收器线程扫描它所管辖的内存区域的过程中，一旦发现了只具有弱引用的对象，不管当前内存空间足够与否，都会回收它的内存。 不过，由于<a href="https://www.zhihu.com/search?q=%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8&amp;search_source=Entity&amp;hybrid_search_source=Entity&amp;hybrid_search_extra=%7B%22sourceType%22%3A%22answer%22%2C%22sourceId%22%3A1367225682%7D">垃圾回收器</a>是一个优先级很低的线程，因此不一定会很快发现那些只具有弱引用的对象。</p>
+</blockquote>
+<p>这就导致了一个问题，ThreadLocal在没有外部强引用时，发生GC时会被回收，如果创建ThreadLocal的线程一直持续运行，那么这个Entry对象中的value就有可能一直得不到回收，发生内存泄露。</p>
+<p>就比如线程池里面的线程，线程都是复用的，那么之前的线程实例处理完之后，出于复用的目的线程依然存活，所以，ThreadLocal设定的value值被持有，导致内存泄露。</p>
+<p>按照道理一个线程使用完，ThreadLocalMap是应该要被清空的，但是现在线程被复用了。</p>
+<h1 id="使用场景">使用场景</h1>
+<ol>
+<li>Spring采用Threadlocal的方式，来保证单个线程中的数据库操作使用的是同一个数据库连接，同时，采用这种方式可以使业务层使用事务时不需要感知并管理connection对象，通过传播级别，巧妙地管理多个事务配置之间的切换，挂起和恢复。Spring框架里面就是用的ThreadLocal来实现这种隔离，主要是在TransactionSynchronizationManager这个类里面，代码如下所示:</li>
+</ol>
+<pre><code class="language-java">private static final Log logger = LogFactory.getLog(TransactionSynchronizationManager.class);
+
+ private static final ThreadLocal&lt;Map&lt;Object, Object&gt;&gt; resources =
+   new NamedThreadLocal&lt;&gt;(&quot;Transactional resources&quot;);
+
+ private static final ThreadLocal&lt;Set&lt;TransactionSynchronization&gt;&gt; synchronizations =
+   new NamedThreadLocal&lt;&gt;(&quot;Transaction synchronizations&quot;);
+
+ private static final ThreadLocal&lt;String&gt; currentTransactionName =
+   new NamedThreadLocal&lt;&gt;(&quot;Current transaction name&quot;);
+
+</code></pre>
+<ol start="2">
+<li>
+<p>在项目中存在一个线程经常遇到横跨若干方法调用，需要传递的对象，也就是上下文（Context），它是一种状态，经常就是是用户身份、任务信息等，就会存在<a href="https://www.zhihu.com/search?q=%E8%BF%87%E6%B8%A1%E4%BC%A0%E5%8F%82&amp;search_source=Entity&amp;hybrid_search_source=Entity&amp;hybrid_search_extra=%7B%22sourceType%22%3A%22answer%22%2C%22sourceId%22%3A1367225682%7D">过渡传参</a>的问题。</p>
+<p>使用到类似责任链模式，给每个方法增加一个context参数非常麻烦，而且有些时候，如果调用链有无法修改源码的第三方库，对象参数就传不进去了，所以我使用到了ThreadLocal去做了一下改造，这样只需要在调用前在ThreadLocal中设置参数，其他地方get一下就好了。</p>
+</li>
+</ol>
+<pre><code class="language-java">before
+  
+void work(User user) {
+    getInfo(user);
+    checkInfo(user);
+    setSomeThing(user);
+    log(user);
+}
+
+then
+  
+void work(User user) {
+try{
+   threadLocalUser.set(user);
+   // 他们内部  User u = threadLocalUser.get(); 就好了
+    getInfo();
+    checkInfo();
+    setSomeThing();
+    log();
+    } finally {
+     threadLocalUser.remove();
+    }
+}
+</code></pre>
+<h1 id="注意️">注意⚠️</h1>
+<p>用完 ThreadLocal 一定要记得手动调用 remove() 方法，否则可能会产生脏数据甚至产生内存泄漏。</p>
+<p>为啥呢？上面不是说线程结束时，会将 threadLocals 置为 null 吗？</p>
+<p>是的，线程结束时，确实会做清理工作。</p>
+<p>但，如果线程一直不结束呢？如果线程会被复用呢？比如使用了线程池。</p>
+<p>所以，使用 ThreadLocal 一定要手动 remove()。</p>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li><a href="#1-%E7%AE%80%E5%8D%95%E4%BB%8B%E7%BB%8D%E5%92%8C%E4%B8%BE%E4%BE%8B">1. 简单介绍和举例</a></li>
+<li><a href="#2-%E5%8E%9F%E7%90%86">2. 原理</a>
+<ul>
+<li><a href="#21-%E7%BA%BF%E7%A8%8B%E9%9A%94%E7%A6%BB">2.1 线程隔离</a></li>
+<li><a href="#22-threadlocalmap%E5%BA%95%E5%B1%82%E7%BB%93%E6%9E%84">2.2 ThreadLocalMap底层结构</a></li>
+<li><a href="#22-%E4%BD%BF%E7%94%A8%E6%95%B0%E7%BB%84%E7%9A%84%E5%8E%9F%E5%9B%A0%E5%92%8C%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3hash%E5%86%B2%E7%AA%81">2.2 使用数组的原因和如何解决hash冲突</a></li>
+<li><a href="#23-%E5%AF%B9%E8%B1%A1%E5%AD%98%E6%94%BE%E4%BD%8D%E7%BD%AE">2.3 对象存放位置</a></li>
+<li><a href="#24-threadlocalmap%E7%9A%84%E5%BC%B1%E5%BC%95%E7%94%A8">2.4 ThreadLocalMap的弱引用</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF">使用场景</a></li>
+<li><a href="#%E6%B3%A8%E6%84%8F%EF%B8%8F">注意⚠️</a></li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://CatearMax.github.io/post/arraylist/">
+              <h3 class="post-title">
+                ArrayList
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://CatearMax.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

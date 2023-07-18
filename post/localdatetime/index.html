@@ -1,0 +1,445 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LocalDateTime | Gridea</title>
+<link rel="shortcut icon" href="https://CatearMax.github.io/favicon.ico?v=1689678765119">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://CatearMax.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="LocalDateTime | Gridea - Atom Feed" href="https://CatearMax.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="为何不建议使用Date？
+
+
+Date类型的日期若不格式化，则阅读性非常差。例如：
+
+Tue Sep 10 09:34:04 CST 2019
+
+
+Date一般是使用SimpleDateFormat进行格式化日期，但SimpleDateFo..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://CatearMax.github.io">
+  <img class="avatar" src="https://CatearMax.github.io/images/avatar.png?v=1689678765119" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              LocalDateTime
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-26
+              </span>
+              <span>
+                7 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <h2 id="为何不建议使用date">为何不建议使用Date？</h2>
+<blockquote>
+<ol>
+<li>Date类型的日期若不格式化，则阅读性非常差。例如：</li>
+</ol>
+<pre><code class="language-java">Tue Sep 10 09:34:04 CST 2019
+</code></pre>
+<ol start="2">
+<li>Date一般是使用<code>SimpleDateFormat</code>进行格式化日期，但<code>SimpleDateFormat</code>是线程不安全的 <code>SimpleDateFormat</code>的<code>format</code>方法最终调用代码：</li>
+</ol>
+<pre><code class="language-java">private StringBuffer format(Date date, StringBuffer toAppendTo,
+                                FieldDelegate delegate) {
+        // Convert input date to time field list
+		//该处会有线程安全问题
+        calendar.setTime(date);
+
+        boolean useDateFormatSymbols = useDateFormatSymbols();
+
+        for (int i = 0; i &lt; compiledPattern.length; ) {
+            int tag = compiledPattern[i] &gt;&gt;&gt; 8;
+            int count = compiledPattern[i++] &amp; 0xff;
+            if (count == 255) {
+                count = compiledPattern[i++] &lt;&lt; 16;
+                count |= compiledPattern[i++];
+            }
+
+            switch (tag) {
+            case TAG_QUOTE_ASCII_CHAR:
+                toAppendTo.append((char)count);
+                break;
+
+            case TAG_QUOTE_CHARS:
+                toAppendTo.append(compiledPattern, i, count);
+                i += count;
+                break;
+
+            default:
+                subFormat(tag, count, delegate, toAppendTo, useDateFormatSymbols);
+                break;
+            }
+        }
+        return toAppendTo;
+    }
+</code></pre>
+<p><code>calendar</code>在<code>SimpleDateFormat</code>中是全局共享变量，当多个线程同时使用<strong>相同的<code>SimpleDateFormat</code>对象</strong>【如用<code>static</code>修饰的<code>SimpleDateFormat</code>】调用<code>format</code>方法时，多个线程会同时调用<code>calendar.setTime</code>方法，可能一个线程刚设置好<code>time</code>值另外的一个线程马上把设置的<code>time</code>值给修改了导致返回的格式化时间可能是错误的。</p>
+<ol start="3">
+<li><code>SimpleDateFormat</code>中的<code>parse</code>方法也是线程不安全的，<code>parse</code>方法实际调用<code>calb.addYear(100).establish(calendar).getTime();</code>方法来解析，<code>alb.establish(calendar)</code>方法里主要完成了：</li>
+</ol>
+<ul>
+<li>重置日期对象cal的属性值</li>
+<li>使用calb中中属性设置cal</li>
+<li>返回设置好的cal对象</li>
+</ul>
+<p>但是这三步不是原子操作，多并发情况下也会造成线程安全问题。</p>
+<p><strong>多线程并发如何保证线程安全</strong>： 主要做的就是避免线程之间共享一个<code>SimpleDateFormat</code>对象：</p>
+<ul>
+<li>每个线程使用时都创建一次<code>SimpleDateFormat</code>对象 =&gt; 创建和销毁对象的开销大</li>
+<li>对使用<code>format</code>和<code>parse</code>方法的地方进行加锁 =&gt; 线程阻塞性能差 -</li>
+<li>使用<code>ThreadLocal</code>保证每个线程最多只创建一次<code>SimpleDateFormat</code>对象 =&gt; 较好的方法</li>
+</ul>
+<p>这么麻烦直接上Java8的LocalDate吧。</p>
+</blockquote>
+<h2 id="localdate">LocalDate</h2>
+<blockquote>
+<p>localDate只会获取<code>年月日</code></p>
+</blockquote>
+<blockquote>
+<ul>
+<li>创建<code>LocalDate</code></li>
+</ul>
+<pre><code class="language-java">	//获取当前年月日 2023-01-17
+	LocalDate localDate = LocalDate.now();
+	//构造指定的年月日 2019-09-10
+	LocalDate localDate1 = LocalDate.of(2019, 9, 10);
+</code></pre>
+<ul>
+<li>获取年、月、日、星期几</li>
+</ul>
+<pre><code class="language-java">		LocalDate localDate = LocalDate.of(2022, 12, 18);
+       //获取年份
+       int year = localDate.getYear();// 2022
+       int year1 = localDate.get(ChronoField.YEAR);// 2022
+       //获取月份
+       Month monthValue = localDate.getMonth();
+       int month = monthValue.getValue();// 12
+       int month2 = localDate.get(ChronoField.MONTH_OF_YEAR);// 12
+       //获取一年中的天数
+       int dayOfYear = localDate.getDayOfYear();// 352
+       int dayOfYear2 = localDate.get(ChronoField.DAY_OF_YEAR);// 352
+       //获取一月中的天数
+       int dayOfMonth = localDate.getDayOfMonth();// 18
+       int dayOfMonth2 = localDate.get(ChronoField.DAY_OF_MONTH);// 18
+       //获取一周中的天数
+       DayOfWeek dayOfWeekValue = localDate.getDayOfWeek();
+       int dayOfWeek = dayOfWeekValue.getValue();// 7
+       int dayOfWeek2 = localDate.get(ChronoField.DAY_OF_WEEK);// 7
+       //获取星期几
+       String week = dayOfWeekValue.name();// SUNDAY
+</code></pre>
+</blockquote>
+<h2 id="localtime">LocalTime</h2>
+<blockquote>
+<p>localTime只会获取<code>时分秒</code></p>
+</blockquote>
+<blockquote>
+<ul>
+<li>创建<code>LocalTime</code></li>
+</ul>
+<pre><code class="language-java">		LocalTime localTime = LocalTime.of(13, 51);//13:51
+       LocalTime localTime1 = LocalTime.of(13, 51, 10);//13:51:10
+       LocalTime localTime2 = LocalTime.now();//10:40:34.286
+</code></pre>
+<ul>
+<li>获取时分秒</li>
+</ul>
+<pre><code class="language-java">		LocalTime localTime = LocalTime.now();//默认带了纳秒数
+       //获取小时
+       int hour = localTime.getHour();// 10
+       int hour1 = localTime.get(ChronoField.HOUR_OF_DAY);// 10
+       //获取分钟
+       int minute = localTime.getMinute();// 45
+       int minute1 = localTime.get(ChronoField.MINUTE_OF_HOUR);// 45
+       //获取秒
+       int second = localTime.getSecond();// 38
+       int second1 = localTime.get(ChronoField.SECOND_OF_MINUTE);// 38
+       //获取纳秒
+       int nano = localTime.getNano();// 93000000
+       int nano1 = localTime.get(ChronoField.NANO_OF_SECOND);// 93000000
+</code></pre>
+</blockquote>
+<h2 id="localdatetime">LocalDateTime</h2>
+<blockquote>
+<p>localDateTime会获取<code>年月日时分秒</code>，相当于LocalDate + LocalTime</p>
+</blockquote>
+<blockquote>
+<ul>
+<li>创建<code>LocalDateTime</code></li>
+</ul>
+<pre><code class="language-java">		LocalDate localDate = LocalDate.now();
+       LocalTime localTime = LocalTime.now();
+       LocalDateTime localDateTime = LocalDateTime.now();
+		//2023-01-19T11:25:39.099
+       LocalDateTime localDateTime1 = LocalDateTime.of(2023, Month.JANUARY, 19, 11, 26, 56);
+		//2023-01-19T11:26:56
+       LocalDateTime localDateTime2 = LocalDateTime.of(localDate, localTime);
+		//2023-01-19T11:25:39.099
+       LocalDateTime localDateTime3 = localDate.atTime(localTime);
+		//2023-01-19T11:25:39.099
+       LocalDateTime localDateTime4 = localTime.atDate(localDate);
+</code></pre>
+<ul>
+<li>获取<code>LocalDate</code></li>
+</ul>
+<pre><code class="language-java">LocalDate localDate2 = localDateTime.toLocalDate();// 2023-01-19
+</code></pre>
+<ul>
+<li>获取<code>LocalTime</code></li>
+</ul>
+<pre><code class="language-java">LocalTime localTime2 = localDateTime.toLocalTime();// 11:25:39.099
+</code></pre>
+</blockquote>
+<h2 id="instant"><strong>Instant</strong></h2>
+<blockquote>
+<ul>
+<li>创建<code>Instant</code>对象</li>
+</ul>
+<pre><code class="language-java">Instant instant = Instant.now();
+</code></pre>
+<ul>
+<li>获取秒数</li>
+</ul>
+<pre><code class="language-java">long currentSecond = instant.getEpochSecond();
+</code></pre>
+<ul>
+<li>获取毫秒数</li>
+</ul>
+<pre><code class="language-java">long currentMilli = instant.toEpochMilli();
+</code></pre>
+<p>若只是为了获取秒数或者毫秒数，使用<code>System.currentTimeMillis()</code>来得更为方便</p>
+</blockquote>
+<h2 id="修改时间"><strong>修改时间</strong></h2>
+<blockquote>
+<p><code>LocalDate</code>、<code>LocalTime</code>、<code>LocalDateTime</code>、<code>Instant</code>为<strong>不可变对象</strong>，修改这些对象对象会<strong>返回一个副本</strong></p>
+</blockquote>
+<blockquote>
+<ul>
+<li>增加、减少年数、月数、天数等 以<code>LocalDateTime</code>为例</li>
+</ul>
+<pre><code class="language-java">		// 2023-7-19 14:46:56
+		LocalDateTime localDateTime = LocalDateTime.of(2023, Month.JULY, 19,
+               14, 46, 56);
+
+		//加一年 2024-7-19 14:46:56
+       localDateTime = localDateTime.plusYears(1);
+		//加一年 2025-7-19 14:46:56
+       localDateTime = localDateTime.plus(1, ChronoUnit.YEARS);
+		//减一月 2025-6-19 14:46:56
+       localDateTime = localDateTime.minusMonths(1);
+		//减一月 2025-5-19 14:46:56
+       localDateTime = localDateTime.minus(1,ChronoUnit.MONTHS);
+</code></pre>
+<ul>
+<li>通过<code>with</code>修改某些值</li>
+</ul>
+<pre><code class="language-java">	// 2023-07-19 14:46:56	
+	LocalDateTime localDateTime = LocalDateTime.of(2023, Month.JULY, 19,
+               14, 46, 56);
+
+       localDateTime = localDateTime.withYear(2024);// 2024-07-19 14:46:56
+       localDateTime = localDateTime.with(ChronoField.YEAR,2019);// 2019-07-19 14:46:56
+</code></pre>
+</blockquote>
+<h2 id="解析时间">解析时间</h2>
+<blockquote>
+<p><code>DateTimeFormatter</code>默认提供了多种格式化方式，如果默认提供的不能满足要求，可以通过<code>DateTimeFormatter</code>的<code>ofPattern</code>方法创建自定义格式化方式。</p>
+<pre><code class="language-java">LocalDate localDate = LocalDate.of(2019, 9, 10);
+// 20190910
+String s1 = localDate.format(DateTimeFormatter.BASIC_ISO_DATE);
+// 2019-09-10
+String s2 = localDate.format(DateTimeFormatter.ISO_LOCAL_DATE);
+//自定义格式化
+DateTimeFormatter dateTimeFormatter =   DateTimeFormatter.ofPattern(&quot;dd/MM/yyyy&quot;);
+// 10/09/2019
+String s3 = localDate.format(dateTimeFormatter);
+</code></pre>
+<p>和<code>SimpleDateFormat</code>相比，<code>DateTimeFormatter</code>是线程安全的</p>
+</blockquote>
+<h2 id="实际使用">实际使用</h2>
+<blockquote>
+<ul>
+<li>将LocalDateTime字段以时间戳的方式返回给前端</li>
+</ul>
+<p>​		1. 添加日期转化类</p>
+<pre><code class="language-java">public class LocalDateTimeConverter extends JsonSerializer&lt;LocalDateTime&gt; {
+   @Override
+   public void serialize(LocalDateTime value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+   gen.writeNumber(value.toInstant(ZoneOffset.of(&quot;+8&quot;)).toEpochMilli());
+   }
+}
+</code></pre>
+<p>​				2. 并在<code>LocalDateTime</code>字段上添加<code>@JsonSerialize(using = LocalDateTimeConverter.class)</code>注解，如下：</p>
+<pre><code class="language-java">@JsonSerialize(using = LocalDateTimeConverter.class)
+protected LocalDateTime gmtModified;
+</code></pre>
+<ul>
+<li>将LocalDateTime字段以指定格式化日期的方式返回给前端</li>
+</ul>
+<p>在<code>LocalDateTime</code>字段上添加<code>@JsonFormat(shape=JsonFormat.Shape.STRING, pattern=&quot;yyyy-MM-dd HH:mm:ss&quot;)</code>注解即可，如下：</p>
+<pre><code class="language-java">@JsonFormat(shape=JsonFormat.Shape.STRING, pattern=&quot;yyyy-MM-dd HH:mm:ss&quot;)
+protected LocalDateTime gmtModified;
+</code></pre>
+<ul>
+<li>对前端传入的日期进行格式化</li>
+</ul>
+<p>在<code>LocalDateTime</code>字段上添加<code>@DateTimeFormat(pattern = &quot;yyyy-MM-dd HH:mm:ss&quot;)</code>注解即可，如下：</p>
+<pre><code class="language-java">@DateTimeFormat(pattern = &quot;yyyy-MM-dd HH:mm:ss&quot;)
+protected LocalDateTime gmtModified;
+</code></pre>
+</blockquote>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#%E4%B8%BA%E4%BD%95%E4%B8%8D%E5%BB%BA%E8%AE%AE%E4%BD%BF%E7%94%A8date">为何不建议使用Date？</a></li>
+<li><a href="#localdate">LocalDate</a></li>
+<li><a href="#localtime">LocalTime</a></li>
+<li><a href="#localdatetime">LocalDateTime</a></li>
+<li><a href="#instant"><strong>Instant</strong></a></li>
+<li><a href="#%E4%BF%AE%E6%94%B9%E6%97%B6%E9%97%B4"><strong>修改时间</strong></a></li>
+<li><a href="#%E8%A7%A3%E6%9E%90%E6%97%B6%E9%97%B4">解析时间</a></li>
+<li><a href="#%E5%AE%9E%E9%99%85%E4%BD%BF%E7%94%A8">实际使用</a></li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+          <div class="next-post">
+            <div class="next">下一篇</div>
+            <a href="https://CatearMax.github.io/post/java8-han-shu-shi-jie-kou/">
+              <h3 class="post-title">
+                Java8函数式接口
+              </h3>
+            </a>
+          </div>
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://CatearMax.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,209 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Java8函数式接口 | Gridea</title>
+<link rel="shortcut icon" href="https://CatearMax.github.io/favicon.ico?v=1689678765119">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="https://CatearMax.github.io/styles/main.css">
+<link rel="alternate" type="application/atom+xml" title="Java8函数式接口 | Gridea - Atom Feed" href="https://CatearMax.github.io/atom.xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
+
+
+
+    <meta name="description" content="
+Java 8 引入了函数式接口，提供了一种新的方法定义和传递行为的方式。函数式接口是指只包含一个抽象方法的接口。这种接口的实例可以通过 Lambda 表达式、方法引用或构造函数引用来创建，让代码更加简洁和可读性更强
+
+1.常用接口
+​		..." />
+    <meta name="keywords" content="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.10.0/katex.min.css">
+    <script src="//cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.5.1/build/highlight.min.js"></script>
+  </head>
+  <body>
+    <div class="main">
+      <div class="main-content">
+        <div class="site-header">
+  <a href="https://CatearMax.github.io">
+  <img class="avatar" src="https://CatearMax.github.io/images/avatar.png?v=1689678765119" alt="">
+  </a>
+  <h1 class="site-title">
+    Gridea
+  </h1>
+  <p class="site-description">
+    温故而知新
+  </p>
+  <div class="menu-container">
+    
+      
+        <a href="/" class="menu">
+          首页
+        </a>
+      
+    
+      
+        <a href="/archives" class="menu">
+          归档
+        </a>
+      
+    
+      
+        <a href="/tags" class="menu">
+          标签
+        </a>
+      
+    
+      
+        <a href="/post/about" class="menu">
+          关于
+        </a>
+      
+    
+  </div>
+  <div class="social-container">
+    
+      
+    
+      
+    
+      
+    
+      
+    
+      
+    
+  </div>
+</div>
+
+        <div class="post-detail">
+          <article class="post">
+            <h2 class="post-title">
+              Java8函数式接口
+            </h2>
+            <div class="post-info">
+              <span>
+                2023-06-26
+              </span>
+              <span>
+                3 min read
+              </span>
+              
+            </div>
+            
+            <div class="post-content-wrapper">
+              <div class="post-content" v-pre>
+                <blockquote>
+<p>Java 8 引入了函数式接口，提供了一种新的方法定义和传递行为的方式。函数式接口是指只包含一个抽象方法的接口。这种接口的实例可以通过 Lambda 表达式、方法引用或构造函数引用来创建，让代码更加简洁和可读性更强</p>
+</blockquote>
+<h2 id="1常用接口">1.常用接口</h2>
+<p>​		Java 8中内置了许多常用的函数式接口。下面是一些常用的函数式接口及其用途：</p>
+<p>​			<strong>Predicate</strong>：接受一个输入参数，返回一个布尔值结果。</p>
+<p>​			<strong>Consumer</strong>：接受一个输入参数，不返回任何结果。</p>
+<p>​			<strong>Function&lt;T, R&gt;</strong>：接受一个输入参数，返回一个结果。</p>
+<p>​			<strong>Supplier</strong>：不接受任何输入参数，返回一个结果。</p>
+<h3 id="11-predicate">1.1 Predicate</h3>
+<p>​		Predicate 是一个函数式接口，它接受一个参数并返回一个布尔值。我们可以使用它来实现各种过滤器和检查器。</p>
+<p>​		例如，我们可以使用 Predicate 来过滤集合中的元素：</p>
+<pre><code class="language-java">			List&lt;String&gt; list = Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+            List&lt;String&gt; filteredList = list.stream()
+                .filter(str -&gt; str.startsWith(&quot;a&quot;))
+                .collect(Collectors.toList()); // 返回 [&quot;apple&quot;]
+</code></pre>
+<h3 id="22-function">2.2 Function</h3>
+<p>​		Function 是一个函数式接口，它接受一个参数并返回一个结果。我们可以使用它来进行各种转换和映射。</p>
+<p>​		例如，我们可以使用Function来映射集合中的元素：</p>
+<pre><code class="language-java">		List&lt;String&gt; list = Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+        List&lt;Integer&gt; lengths = list.stream()
+                .map(str -&gt; str.length())
+                .collect(Collectors.toList()); // 返回 [5, 6, 4, 6]
+</code></pre>
+<h3 id="23-consumer">2.3 Consumer</h3>
+<p>​		Consumer 是一个函数式接口，它接受一个参数并不返回任何结果。我们可以使用它来对一组元素进行操作。</p>
+<p>​		例如，我们也可以使用 Consumer 来对集合中的元素循环遍历进行操作：</p>
+<pre><code class="language-java">		List&lt;String&gt; list = Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+        list.forEach(str -&gt; System.out.println(str.toUpperCase())); // 输出 &quot;APPLE&quot;, &quot;BANANA&quot;, &quot;PEAR&quot;, &quot;ORANGE&quot;
+</code></pre>
+<h3 id="24-suppiler">2.4 Suppiler</h3>
+<p>​		Supplier 是一个函数式接口，它不接受任何参数，但返回一个结果。我们可以使用它来生成值。</p>
+<pre><code class="language-java">		Supplier&lt;List&lt;String&gt;&gt; defaultList = () -&gt; Arrays.asList(&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;);
+        List&lt;String&gt; list = defaultList.get(); // 返回 [&quot;apple&quot;, &quot;banana&quot;, &quot;pear&quot;, &quot;orange&quot;]
+</code></pre>
+
+              </div>
+              <div class="toc-container">
+                <ul class="markdownIt-TOC">
+<li>
+<ul>
+<li><a href="#1%E5%B8%B8%E7%94%A8%E6%8E%A5%E5%8F%A3">1.常用接口</a>
+<ul>
+<li><a href="#11-predicate">1.1 Predicate</a></li>
+<li><a href="#22-function">2.2 Function</a></li>
+<li><a href="#23-consumer">2.3 Consumer</a></li>
+<li><a href="#24-suppiler">2.4 Suppiler</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+              </div>
+            </div>
+          </article>
+        </div>
+
+        
+
+        
+
+        <div class="site-footer">
+  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
+  <a class="rss" href="https://CatearMax.github.io/atom.xml" target="_blank">
+    <i class="ri-rss-line"></i> RSS
+  </a>
+</div>
+
+      </div>
+    </div>
+
+    <script>
+      hljs.initHighlightingOnLoad()
+
+      let mainNavLinks = document.querySelectorAll(".markdownIt-TOC a");
+
+      // This should probably be throttled.
+      // Especially because it triggers during smooth scrolling.
+      // https://lodash.com/docs/4.17.10#throttle
+      // You could do like...
+      // window.addEventListener("scroll", () => {
+      //    _.throttle(doThatStuff, 100);
+      // });
+      // Only not doing it here to keep this Pen dependency-free.
+
+      window.addEventListener("scroll", event => {
+        let fromTop = window.scrollY;
+
+        mainNavLinks.forEach((link, index) => {
+          let section = document.getElementById(decodeURI(link.hash).substring(1));
+          let nextSection = null
+          if (mainNavLinks[index + 1]) {
+            nextSection = document.getElementById(decodeURI(mainNavLinks[index + 1].hash).substring(1));
+          }
+          if (section.offsetTop <= fromTop) {
+            if (nextSection) {
+              if (nextSection.offsetTop > fromTop) {
+                link.classList.add("current");
+              } else {
+                link.classList.remove("current");    
+              }
+            } else {
+              link.classList.add("current");
+            }
+          } else {
+            link.classList.remove("current");
+          }
+        });
+      });
+
+    </script>
+  </body>
+</html>
